@@ -1,0 +1,4 @@
+content ctpp content/
+skin ctpp classic/1.0 skin/
+locale ctpp en-US locale/en-US/
+manifest components/component.manifest

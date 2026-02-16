@@ -1,0 +1,7 @@
+family csl
+
+state IN_CSL_UT_DEFAULT:
+  /%>/ : \
+    paint(upto, CSL_DEFAULT), \
+    paint(include, CSL_OPERATOR), \
+    spop_check, => IN_CSL_DEFAULT

@@ -1,0 +1,62 @@
+# Lexer for CTPP (or CT++) -- template engine completely written in C++
+
+family tpl
+sublanguage CTPP
+
+start_style TPL_DEFAULT
+end_style   TPL_VARIABLE
+
+keyword_style TPL_IDENTIFIER => TPL_WORD
+keywords [
+TMPL_var TMPL_if TMPL_elsif TMPL_else TMPL_unless TMPL_loop TMPL_foreach TMPL_udf
+TMPL_include TMPL_comment TMPL_block TMPL_call
+]
+
+
+# (опционально) можно “поднимать” идентификаторы до ключевых слов
+#keywords [as map]
+#keyword_style TPL_IDENTIFIER => TPL_WORD
+
+# Мы заходим сюда прямо ПОСЛЕ "<TMPL_...".
+# Задача: подсветить параметры/выражения до закрывающего '>' и вернуться в HTML.
+state IN_TPL_DEFAULT:
+  '/>' : paint(include, TPL_OPERATOR), => IN_M_DEFAULT
+  '>'  : paint(include, TPL_OPERATOR), => IN_M_DEFAULT
+
+  /[ \t\r\n]+/ : paint(include, TPL_DEFAULT)
+
+  # строки
+  '"'  : paint(include, TPL_STRING), => IN_TPL_DQ
+  "'"  : paint(include, TPL_STRING), => IN_TPL_SQ
+
+  # числа
+  /\b\d+(?:\.\d+)?\b/ : paint(include, TPL_NUMBER)
+
+  # идентификаторы/имена переменных/функций
+  # В CTPP2 имя переменной обычно начинается с буквы, но на практике встречаются __FIRST__ и т.п.,
+  # плюс поддерживается доступ через точку foo.bar :contentReference[oaicite:6]{index=6}
+  /[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*/ : paint(include, TPL_IDENTIFIER)
+
+  # операторы/пунктуация (для выражений вида URLESCAPE(username), map(a:b), as, сравнения и т.п.)
+  /[=(),:\[\]{}.+\-*\/%!<>]/ : paint(include, TPL_OPERATOR)
+
+  # остальное
+  /./ : paint(include, TPL_DEFAULT)
+
+state IN_TPL_DQ:
+  /\\./     : paint(include, TPL_STRING)
+  /[^"\\]+/ : paint(include, TPL_STRING)
+  '"'       : paint(include, TPL_STRING), => IN_TPL_DEFAULT
+  /./       : paint(include, TPL_STRING)
+
+state IN_TPL_SQ:
+  /\\./     : paint(include, TPL_STRING)
+  /[^'\\]+/ : paint(include, TPL_STRING)
+  "'"       : paint(include, TPL_STRING), => IN_TPL_DEFAULT
+  /./       : paint(include, TPL_STRING)
+
+# Если зашли через <!-- TMPL_... то держим всё комментарием до -->
+state IN_TPL_CTPP_HTML_COMMENT:
+  /-->/    : paint(include, TPL_COMMENT), => IN_M_DEFAULT
+  /[^-]+/  : paint(include, TPL_COMMENT)
+  /-/      : paint(include, TPL_COMMENT)

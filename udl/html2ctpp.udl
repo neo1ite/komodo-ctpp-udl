@@ -1,0 +1,15 @@
+family markup
+
+# В CTPP2 теги case-insensitive, поэтому используем (?i:...)
+# Список тегов: var/if/elsif/else/unless/loop/foreach/udf/include/comment/block/call
+# (см. CTPP2 tags) :contentReference[oaicite:5]{index=5}
+state IN_M_DEFAULT:
+  /<\/?(?i:TMPL_(?:var|if|elsif|else|unless|loop|foreach|udf|include|comment|block|call))\b/ : \
+    paint(upto, M_DEFAULT), \
+    paint(include, TPL_WORD), \
+    => IN_TPL_DEFAULT
+
+  /<!--\s*(?i:TMPL_(?:var|if|elsif|else|unless|loop|foreach|udf|include|comment|block|call))\b/ : \
+    paint(upto, M_DEFAULT), \
+    paint(include, TPL_COMMENT), \
+    => IN_TPL_CTPP_HTML_COMMENT

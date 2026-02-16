@@ -1,0 +1,149 @@
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License
+# Version 1.1 (the "License"); you may not use this file except in
+# compliance with the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS"
+# basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+# License for the specific language governing rights and limitations
+# under the License.
+#
+# The Original Code is Komodo code.
+#
+# The Initial Developer of the Original Code is ActiveState Software Inc.
+#
+# ***** END LICENSE BLOCK *****
+
+# -*- coding: utf-8 -*-
+"""
+CTPP linter (stage A): delegate to Komodo's built-in HTML linter so we get:
+  - HTML validation
+  - JS validation inside <script> blocks (handled by HTML linter)
+No ctpp compiler here yet.
+
+IMPORTANT:
+  - Always return koILintResults. Returning None makes Komodo think the linter is async
+    and the "hourglass" will hang forever.
+"""
+
+import logging
+import re
+from xpcom import components
+
+# Komodo often returns XPCOM-wrapped Python objects; UnwrapObject gives you the real object
+# so you can pass extra args (TPLInfo/udlMapping), as Mason does.
+try:
+    from xpcom.server import UnwrapObject
+except Exception:  # pragma: no cover
+    def UnwrapObject(obj):
+        return obj
+
+# This is the canonical "empty results" object (used in Komodo's own linters)
+from koLintResults import koLintResults
+
+
+log = logging.getLogger("koCTPP.linter")
+
+class KoCTPPLinter(object):
+    _com_interfaces_ = [components.interfaces.koILinter]
+    _reg_desc_ = "CTPP (HTML/JS) Linter"
+    _reg_clsid_ = "{a98b0eea-e713-4a12-b1c2-ff7a56d43bf7}"
+
+    # Do NOT use "type=" пока у нас один лентер — иначе Komodo может не выбрать его как default.
+    _reg_contractid_ = "@activestate.com/koLinter?language=CTPP;1"
+    _reg_categories_ = [
+        ("category-komodo-linter", "CTPP"),
+    ]
+
+    # For HTML linter's "template" support (same trick as Mason).
+    # This doesn't make Komodo "understand" CTPP, but helps HTML/JS linting be less noisy.
+    _tplPatterns = (
+        "CTPP",
+        re.compile(r"<%[=-]?", re.U),
+        re.compile(r"%>\s*\Z", re.U | re.DOTALL),
+    )
+
+    def __init__(self):
+        # НИЧЕГО не делаем “тяжёлого” в __init__ — чтобы addRequest не падал.
+        self._koLintService = None
+        self._html_linter = None
+
+    def _empty_results(self):
+        # MUST return an object; never None.
+        return koLintResults()
+
+    def _get_lint_service(self):
+        if self._koLintService is None:
+            self._koLintService = components.classes["@activestate.com/koLintService;1"] \
+                .getService(components.interfaces.koILintService)
+        return self._koLintService
+
+    def _get_html_linter(self):
+        if self._html_linter is not None:
+            return self._html_linter
+
+        svc = self._get_lint_service()
+
+        # Komodo 9 usually has "HTML" linter; on some builds "HTML5" also exists.
+        for lang in ("HTML", "HTML5"):
+            try:
+                l = svc.getLinterForLanguage(lang)
+            except Exception:
+                l = None
+            if l:
+                self._html_linter = UnwrapObject(l)
+                return self._html_linter
+
+        self._html_linter = None
+        return None
+
+    def lint(self, request):
+        """Lint buffer. Must always return koILintResults."""
+        html_linter = self._get_html_linter()
+        if not html_linter:
+            return self._empty_results()
+
+        # Try Mason-style call first (supports templates). Fall back to plain lint().
+        try:
+            res = html_linter.lint(request, TPLInfo=self._tplPatterns)
+        except TypeError:
+            res = html_linter.lint(request)
+
+        return res or self._empty_results()
+
+    def lint_with_text(self, request, text):
+        """
+        Some Komodo paths call lint_with_text(). Keep behaviour consistent.
+        """
+        html_linter = self._get_html_linter()
+        if not html_linter:
+            return self._empty_results()
+
+        # Optionally: pre-sanitize template blocks to reduce noise for HTML/JS validation.
+        # This keeps line numbers intact.
+        try:
+            cleaned = self._mask_tpl_blocks(text)
+        except Exception:
+            cleaned = text
+
+        if hasattr(html_linter, "lint_with_text"):
+            try:
+                res = html_linter.lint_with_text(request, cleaned, TPLInfo=self._tplPatterns)
+            except TypeError:
+                res = html_linter.lint_with_text(request, cleaned)
+            return res or self._empty_results()
+
+        # Fallback: let HTML linter read the buffer itself.
+        return self.lint(request)
+
+    _re_tpl_block = re.compile(r"<%[=-]?.*?%>", re.S)
+
+    def _mask_tpl_blocks(self, text):
+        def _mask(m):
+            s = m.group(0)
+            # preserve newlines, mask everything else with spaces
+            return re.sub(r"[^\r\n]", " ", s)
+        return self._re_tpl_block.sub(_mask, text)

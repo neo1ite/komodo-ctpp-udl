@@ -1,0 +1,36 @@
+family csl
+
+# ВХОД: из JS-строки (одинарные кавычки)
+state IN_CSL_SSTRING:
+  /<%-/ : \
+    paint(upto, CSL_STRING), \
+    paint(include, CSL_OPERATOR), \
+    spush_check(IN_CSL_SSTRING), => IN_CSL_UT_DEFAULT
+
+  /<%=/ : \
+    paint(upto, CSL_STRING), \
+    paint(include, CSL_OPERATOR), \
+    spush_check(IN_CSL_SSTRING), => IN_CSL_UT_DEFAULT
+
+  /<%/ : \
+    paint(upto, CSL_STRING), \
+    paint(include, CSL_OPERATOR), \
+    spush_check(IN_CSL_SSTRING), => IN_CSL_UT_DEFAULT
+
+
+# ВХОД: из JS-строки (двойные кавычки)
+state IN_CSL_DSTRING:
+  /<%-/ : \
+    paint(upto, CSL_STRING), \
+    paint(include, CSL_OPERATOR), \
+    spush_check(IN_CSL_DSTRING), => IN_CSL_UT_DEFAULT
+
+  /<%=/ : \
+    paint(upto, CSL_STRING), \
+    paint(include, CSL_OPERATOR), \
+    spush_check(IN_CSL_DSTRING), => IN_CSL_UT_DEFAULT
+
+  /<%/ : \
+    paint(upto, CSL_STRING), \
+    paint(include, CSL_OPERATOR), \
+    spush_check(IN_CSL_DSTRING), => IN_CSL_UT_DEFAULT

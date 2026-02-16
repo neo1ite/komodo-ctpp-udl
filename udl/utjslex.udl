@@ -1,0 +1,55 @@
+family csl
+
+state IN_CSL_UT_DEFAULT:
+  /%>/ : paint(upto, CSL_DEFAULT), paint(include, CSL_OPERATOR), spop_check, => IN_M_DEFAULT
+
+  /[$WS]+/ : paint(include, CSL_DEFAULT)
+
+  # comments
+  /\/\// : paint(include, CSL_COMMENT), => IN_CSL_UT_LINE_COMMENT
+  /\/\*/ : paint(include, CSL_COMMENT), => IN_CSL_UT_BLOCK_COMMENT
+
+  # strings
+  '"' : paint(include, CSL_STRING), => IN_CSL_UT_DQ
+  "'" : paint(include, CSL_STRING), => IN_CSL_UT_SQ
+
+  # keywords (минимум, но хватает для ваших примеров)
+  /\b(?:var|let|const|if|else|for|while|do|switch|case|break|continue|function|return|new|this|true|false|null|undefined|try|catch|finally|throw)\b/ : \
+    paint(include, CSL_WORD)
+
+  # number
+  /\b\d+(?:\.\d+)?\b/ : paint(include, CSL_NUMBER)
+
+  # identifiers
+  /[A-Za-z_\$][A-Za-z0-9_\$]*/ : \
+    paint(include, CSL_IDENTIFIER)
+
+  # operators / punctuation (включая ?: && ||)
+  /==|!=|===|!==|<=|>=|&&|\|\||\+\+|--|=>|[=(){}[\],;:.<>+\-*\/%!?:]/ : \
+    paint(include, CSL_OPERATOR)
+
+  /./ : paint(include, CSL_DEFAULT)
+
+state IN_CSL_UT_LINE_COMMENT:
+  /%>/ : paint(upto, CSL_COMMENT), paint(include, CSL_OPERATOR), spop_check, => IN_M_DEFAULT
+  /[^\n]*/ : paint(include, CSL_COMMENT), => IN_CSL_UT_DEFAULT
+
+state IN_CSL_UT_BLOCK_COMMENT:
+  /%>/ : paint(upto, CSL_COMMENT), paint(include, CSL_OPERATOR), spop_check, => IN_M_DEFAULT
+  /\*\// : paint(include, CSL_COMMENT), => IN_CSL_UT_DEFAULT
+  /[^*]+/ : paint(include, CSL_COMMENT)
+  /\*/ : paint(include, CSL_COMMENT)
+
+state IN_CSL_UT_DQ:
+  /%>/ : paint(upto, CSL_STRING), paint(include, CSL_OPERATOR), spop_check, => IN_M_DEFAULT
+  /\\./ : paint(include, CSL_STRING)
+  /[^"\\]+/ : paint(include, CSL_STRING)
+  '"' : paint(include, CSL_STRING), => IN_CSL_UT_DEFAULT
+  /./ : paint(include, CSL_STRING)
+
+state IN_CSL_UT_SQ:
+  /%>/ : paint(upto, CSL_STRING), paint(include, CSL_OPERATOR), spop_check, => IN_M_DEFAULT
+  /\\./ : paint(include, CSL_STRING)
+  /[^'\\]+/ : paint(include, CSL_STRING)
+  "'" : paint(include, CSL_STRING), => IN_CSL_UT_DEFAULT
+  /./ : paint(include, CSL_STRING)
