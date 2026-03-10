@@ -1,10 +1,11 @@
 # Переходники (их порядок важен: сначала transitions, потом lexers)
-include "html2js.udl"
-include "html2css.udl"
 include "html2ctpp.udl"
 include "html2underscore.udl"
+include "html2js.udl"
+include "html2css.udl"
 include "css2html.udl"
 include "js2html.udl"
+include "js2ctpp.udl"
 include "js2underscore.udl"
 include "underscore2js.udl"
 

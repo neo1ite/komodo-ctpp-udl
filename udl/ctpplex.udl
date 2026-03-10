@@ -20,8 +20,12 @@ TMPL_include TMPL_comment TMPL_block TMPL_call
 # Мы заходим сюда прямо ПОСЛЕ "<TMPL_...".
 # Задача: подсветить параметры/выражения до закрывающего '>' и вернуться в HTML.
 state IN_TPL_DEFAULT:
-  '/>' : paint(include, TPL_OPERATOR), => IN_M_DEFAULT
-  '>'  : paint(include, TPL_OPERATOR), => IN_M_DEFAULT
+  '/>' : \
+    paint(upto, TPL_DEFAULT), \
+    paint(include, TPL_OPERATOR), spop_check, => IN_M_DEFAULT
+  '>'  : \
+    paint(upto, TPL_DEFAULT), \
+    paint(include, TPL_OPERATOR), spop_check, => IN_M_DEFAULT
 
   /[ \t\r\n]+/ : paint(include, TPL_DEFAULT)
 
@@ -57,6 +61,6 @@ state IN_TPL_SQ:
 
 # Если зашли через <!-- TMPL_... то держим всё комментарием до -->
 state IN_TPL_CTPP_HTML_COMMENT:
-  /-->/    : paint(include, TPL_COMMENT), => IN_M_DEFAULT
+  /-->/    : paint(include, TPL_COMMENT), spop_check, => IN_M_DEFAULT
   /[^-]+/  : paint(include, TPL_COMMENT)
   /-/      : paint(include, TPL_COMMENT)
