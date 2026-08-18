@@ -49,22 +49,21 @@ ctpp_language-1.3-ko.xpi
 
 ## Иконка языка
 
-Начиная с версии 1.3 иконка языка CTPP подключается через штатный механизм Komodo `agent-style-sheets`.
-
-Stylesheet регистрируется из `skin/languages.css` по той же схеме, которую Komodo использует для собственных языковых иконок:
+В версии 1.3 `skin/languages.css` загружается в основной интерфейс Komodo через небольшой корректный XUL overlay. Одновременно stylesheet регистрируется через `agent-style-sheets` как резервный механизм.
 
 ```text
+overlay chrome://komodo/content/komodo.xul chrome://ctpp/content/overlay.xul
 category agent-style-sheets ctpp-language-icons chrome://ctpp/skin/languages.css
 ```
 
-Сам SVG расположен в `skin/ctpp.svg`.
-
-В старых ревизиях stylesheet подключался через XUL overlay. Этот вариант удалён, потому что Komodo 9 мог выдавать ошибки вида:
+В overlay находится только объявление stylesheet и пустой корректный XUL-элемент `overlay`. Это принципиально отличается от одной из предыдущих неудачных ревизий, где `overlay.xul` был пустым и Komodo выдавал:
 
 ```text
 no element found in chrome://ctpp/content/overlay.xul
 Failed to load overlay from chrome://ctpp/content/overlay.xul
 ```
+
+Сам SVG расположен в `skin/ctpp.svg`.
 
 ## Структура проекта
 
@@ -73,7 +72,7 @@ Failed to load overlay from chrome://ctpp/content/overlay.xul
 - `pylib/` — интеграция Code Intelligence/CILE;
 - `templates/` — шаблоны новых файлов;
 - `skin/` — ресурсы интерфейса, включая `languages.css` и `ctpp.svg`;
-- `content/` — прочие ресурсы chrome package при необходимости.
+- `content/` — chrome-ресурсы, включая overlay для иконки языка.
 
 ## Совместимость
 
