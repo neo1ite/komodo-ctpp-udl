@@ -4,7 +4,7 @@
     <Description about="urn:mozilla:install-manifest">
         <em:id>ctpp_language@www.neolite.org</em:id>
         <em:name>ctpp</em:name>
-        <em:version>1.1</em:version>
+        <em:version>1.2</em:version>
         <em:description>CTPP2 (or CT++) is a template engine (with Underscore templates support) completely written in C++</em:description>
         <em:creator>Sergey Kovalev</em:creator>
         <em:homepageURL>https://github.com/neo1ite/komodo-ctpp-udl</em:homepageURL>

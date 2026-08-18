@@ -1,0 +1,4 @@
+.languageicon[language="CTPP"],
+treechildren::-moz-tree-image(LanguageCTPP) {
+    list-style-image: url("chrome://ctpp/skin/ctpp.svg") !important;
+}
