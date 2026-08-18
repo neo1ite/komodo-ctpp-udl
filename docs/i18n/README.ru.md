@@ -4,7 +4,7 @@
 
 Это расширение добавляет поддержку шаблонов **CTPP2 / CT++** в Komodo IDE и Komodo Edit.
 
-Оно регистрирует язык `CTPP` для файлов `*.ctpp`, обеспечивает подсветку синтаксиса смешанных CTPP/HTML5/CSS/JavaScript-шаблонов и содержит UDL-поддержку, используемую проектом для Underscore templates.
+Оно регистрирует язык `CTPP` для файлов `*.ctpp`, обеспечивает подсветку смешанных CTPP/HTML5/CSS/JavaScript-шаблонов и содержит UDL-поддержку для Underscore templates.
 
 ## Возможности
 
@@ -14,25 +14,23 @@
 - шаблоны новых CTPP-файлов;
 - компоненты linter и Code Intelligence/CILE;
 - отдельная иконка CTPP для файлов и элементов интерфейса языка;
-- совместимость с Komodo IDE и Komodo Edit 6–9.
+- совместимость с Komodo IDE и Komodo Edit версий 6–9.
 
 Полноценный современный Code Intelligence для CTPP пока не реализован.
 
 ## Установка
 
-Установите XPI-пакет через менеджер дополнений Komodo.
+Установите XPI через менеджер дополнений Komodo.
 
-После обновления расширения полностью закройте Komodo и удалите startup cache, а затем запустите Komodo снова:
+После обновления промежуточной сборки полностью закройте Komodo и удалите startup cache:
 
 ```bash
 rm -rf ~/.komodoide/9.3/XRE/startupCache
 ```
 
-Для Komodo Edit используйте соответствующий каталог профиля, если он отличается в вашей системе.
-
 ## Сборка
 
-Komodo 9 поставляется со своим Python 2.7 — `mozpython`. На современных Linux-системах команда `python` может отсутствовать, поэтому надёжный способ сборки выглядит так:
+Komodo 9 поставляется со своим Python 2.7 — `mozpython`. На современных Linux-системах SDK следует запускать через runtime Komodo:
 
 ```bash
 KOMODO_HOME="${KOMODO_HOME:-$HOME/Komodo-IDE-9}"
@@ -41,7 +39,7 @@ KOMODO_HOME="${KOMODO_HOME:-$HOME/Komodo-IDE-9}"
     "$KOMODO_HOME/lib/sdk/bin/koext" build
 ```
 
-Успешная сборка создаёт XPI примерно такого вида:
+Для версии 1.3 успешная сборка создаёт:
 
 ```text
 ctpp_language-1.3-ko.xpi
@@ -49,21 +47,17 @@ ctpp_language-1.3-ko.xpi
 
 ## Иконка языка
 
-В версии 1.3 `skin/languages.css` загружается в основной интерфейс Komodo через небольшой корректный XUL overlay. Одновременно stylesheet регистрируется через `agent-style-sheets` как резервный механизм.
+Иконки файлов/вкладок CTPP разрешаются через файловый механизм `koicon://` Komodo. Список языков — другой путь интерфейса: Komodo создаёт language menu внутри `chrome://komodo/content/komodo.xul` и назначает сгенерированную `koicon://ko-language/CTPP` как inline style.
+
+Поэтому версия 1.3 подключает CTPP stylesheet непосредственно к основному chrome Komodo через директиву `style` в chrome manifest:
 
 ```text
-overlay chrome://komodo/content/komodo.xul chrome://ctpp/content/overlay.xul
-category agent-style-sheets ctpp-language-icons chrome://ctpp/skin/languages.css
+style chrome://komodo/content/komodo.xul chrome://ctpp/skin/languages.css
 ```
 
-В overlay находится только объявление stylesheet и пустой корректный XUL-элемент `overlay`. Это принципиально отличается от одной из предыдущих неудачных ревизий, где `overlay.xul` был пустым и Komodo выдавал:
+`skin/languages.css` переопределяет изображение для `language="CTPP"`, а сам SVG находится в `skin/ctpp.svg`.
 
-```text
-no element found in chrome://ctpp/content/overlay.xul
-Failed to load overlay from chrome://ctpp/content/overlay.xul
-```
-
-Сам SVG расположен в `skin/ctpp.svg`.
+Предыдущие промежуточные варианты с `agent-style-sheets` и XUL overlay для language-menu icon удалены.
 
 ## Структура проекта
 
@@ -72,20 +66,20 @@ Failed to load overlay from chrome://ctpp/content/overlay.xul
 - `pylib/` — интеграция Code Intelligence/CILE;
 - `templates/` — шаблоны новых файлов;
 - `skin/` — ресурсы интерфейса, включая `languages.css` и `ctpp.svg`;
-- `content/` — chrome-ресурсы, включая overlay для иконки языка.
+- `content/` — прочие chrome-ресурсы при необходимости.
 
 ## Совместимость
 
 Основная проверенная конфигурация:
 
-- Komodo IDE 9.3.2;
+- Komodo IDE 9.3.2 build 88191;
 - Linux x86_64.
 
 `install.rdf` допускает Komodo IDE и Komodo Edit версий 6–9.
 
 ## Диагностика
 
-Если после установки новой версии изменения не появились в интерфейсе, полностью закройте Komodo и удалите:
+Если после установки промежуточной сборки изменения не появились в интерфейсе, полностью закройте Komodo и удалите:
 
 ```text
 ~/.komodoide/9.3/XRE/startupCache
@@ -93,7 +87,7 @@ Failed to load overlay from chrome://ctpp/content/overlay.xul
 
 После этого запустите Komodo снова.
 
-Если Code Intelligence выдаёт исключение при разборе постороннего JavaScript-файла, это отдельная проблема и не связано непосредственно с регистрацией языка CTPP; её следует разбирать по журналу Komodo отдельно.
+Если Code Intelligence выдаёт исключение при разборе постороннего JavaScript-файла, это отдельная проблема и не связано непосредственно с регистрацией языка CTPP.
 
 ## Лицензия
 
