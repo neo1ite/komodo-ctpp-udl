@@ -30,16 +30,27 @@ rm -rf ~/.komodoide/9.3/XRE/startupCache
 
 ## Сборка
 
-Komodo 9 поставляется со своим Python 2.7 — `mozpython`. На современных Linux-системах SDK следует запускать через runtime Komodo:
+Используйте штатный скрипт репозитория:
 
 ```bash
-KOMODO_HOME="${KOMODO_HOME:-$HOME/Komodo-IDE-9}"
-
-"$KOMODO_HOME/lib/mozilla/mozpython" \
-    "$KOMODO_HOME/lib/sdk/bin/koext" build
+./build.sh
 ```
 
-Для версии 1.3 успешная сборка создаёт:
+По умолчанию используется `~/Komodo-IDE-9`. При необходимости путь можно переопределить:
+
+```bash
+KOMODO_HOME=/opt/Komodo-IDE-9 ./build.sh
+```
+
+Скрипт запускает собственный Python 2.7 и SDK Komodo:
+
+```text
+mozpython koext build --unjarred
+```
+
+Параметр `--unjarred` обязателен намеренно. По умолчанию SDK Komodo перемещает `content/`, `skin/` и `locale/` внутрь `ctpp_language.jar`, тогда как chrome manifest этого расширения адресует эти ресурсы как обычные каталоги расширения. Unjarred-сборка сохраняет корректную доступность chrome registrations и stylesheet иконки языка.
+
+Успешная сборка версии 1.3 создаёт:
 
 ```text
 ctpp_language-1.3-ko.xpi
@@ -47,17 +58,15 @@ ctpp_language-1.3-ko.xpi
 
 ## Иконка языка
 
-Иконки файлов/вкладок CTPP разрешаются через файловый механизм `koicon://` Komodo. Список языков — другой путь интерфейса: Komodo создаёт language menu внутри `chrome://komodo/content/komodo.xul` и назначает сгенерированную `koicon://ko-language/CTPP` как inline style.
+Komodo 9 строит меню Languages динамически и назначает каждому пункту класс `languageicon` и атрибут `language`. Расширение предоставляет `skin/languages.css`, который заменяет иконку для `language="CTPP"` на `skin/ctpp.svg`.
 
-Поэтому версия 1.3 подключает CTPP stylesheet непосредственно к основному chrome Komodo через директиву `style` в chrome manifest:
+Stylesheet загружается глобально через тот же механизм `agent-style-sheets`, который используется рабочим TypeScript-расширением:
 
 ```text
-style chrome://komodo/content/komodo.xul chrome://ctpp/skin/languages.css
+category agent-style-sheets ctpp-language-icons chrome://ctpp/skin/languages.css
 ```
 
-`skin/languages.css` переопределяет изображение для `language="CTPP"`, а сам SVG находится в `skin/ctpp.svg`.
-
-Предыдущие промежуточные варианты с `agent-style-sheets` и XUL overlay для language-menu icon удалены.
+Поэтому chrome-ресурсы должны реально присутствовать в установленном XPI; именно для этого поддерживаемая сборка использует `--unjarred`.
 
 ## Структура проекта
 
@@ -66,7 +75,8 @@ style chrome://komodo/content/komodo.xul chrome://ctpp/skin/languages.css
 - `pylib/` — интеграция Code Intelligence/CILE;
 - `templates/` — шаблоны новых файлов;
 - `skin/` — ресурсы интерфейса, включая `languages.css` и `ctpp.svg`;
-- `content/` — прочие chrome-ресурсы при необходимости.
+- `content/` — прочие chrome-ресурсы при необходимости;
+- `build.sh` — поддерживаемый способ сборки под Komodo 9.
 
 ## Совместимость
 
@@ -87,7 +97,11 @@ style chrome://komodo/content/komodo.xul chrome://ctpp/skin/languages.css
 
 После этого запустите Komodo снова.
 
-Если Code Intelligence выдаёт исключение при разборе постороннего JavaScript-файла, это отдельная проблема и не связано непосредственно с регистрацией языка CTPP.
+При проблемах с иконкой проверьте, что XPI содержит `skin/languages.css` и `skin/ctpp.svg` как обычные каталоги верхнего уровня, а не только внутри `ctpp_language.jar`:
+
+```bash
+unzip -l ctpp_language-1.3-ko.xpi | grep -E 'skin/(languages\.css|ctpp\.svg)|ctpp_language\.jar'
+```
 
 ## Лицензия
 
