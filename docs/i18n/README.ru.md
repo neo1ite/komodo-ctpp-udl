@@ -30,25 +30,16 @@ rm -rf ~/.komodoide/9.3/XRE/startupCache
 
 ## Сборка
 
-Используйте штатный скрипт репозитория:
+Komodo 9 поставляется со своим Python 2.7 — `mozpython`. На современных Linux-системах SDK следует запускать через runtime Komodo.
+
+**Важно:** используйте `--unjarred`. По умолчанию SDK Komodo упаковывает `content/`, `skin/` и `locale/` внутрь `ctpp_language.jar`, а `chrome.manifest` данного расширения обращается к `chrome://ctpp/skin/languages.css` и `ctpp.svg` как к обычным chrome-каталогам. Поэтому для иконки языка требуется unjarred-сборка.
 
 ```bash
-./build.sh
+KOMODO_HOME="${KOMODO_HOME:-$HOME/Komodo-IDE-9}"
+
+"$KOMODO_HOME/lib/mozilla/mozpython" \
+    "$KOMODO_HOME/lib/sdk/bin/koext" build --unjarred
 ```
-
-По умолчанию используется `~/Komodo-IDE-9`. При необходимости путь можно переопределить:
-
-```bash
-KOMODO_HOME=/opt/Komodo-IDE-9 ./build.sh
-```
-
-Скрипт запускает собственный Python 2.7 и SDK Komodo:
-
-```text
-mozpython koext build --unjarred
-```
-
-Параметр `--unjarred` обязателен намеренно. По умолчанию SDK Komodo перемещает `content/`, `skin/` и `locale/` внутрь `ctpp_language.jar`, тогда как chrome manifest этого расширения адресует эти ресурсы как обычные каталоги расширения. Unjarred-сборка сохраняет корректную доступность chrome registrations и stylesheet иконки языка.
 
 Успешная сборка версии 1.3 создаёт:
 
@@ -56,17 +47,21 @@ mozpython koext build --unjarred
 ctpp_language-1.3-ko.xpi
 ```
 
+В выводе сборки должны присутствовать отдельные каталоги `skin/` и `content/`, а файла `ctpp_language.jar` быть не должно.
+
 ## Иконка языка
 
-Komodo 9 строит меню Languages динамически и назначает каждому пункту класс `languageicon` и атрибут `language`. Расширение предоставляет `skin/languages.css`, который заменяет иконку для `language="CTPP"` на `skin/ctpp.svg`.
+Иконки файлов/вкладок CTPP разрешаются через файловый механизм Komodo. Список языков использует другой путь интерфейса: Komodo создаёт пункты с классом `languageicon` и атрибутом `language="CTPP"`.
 
-Stylesheet загружается глобально через тот же механизм `agent-style-sheets`, который используется рабочим TypeScript-расширением:
+Версия 1.3 подключает CTPP stylesheet непосредственно к основному chrome Komodo:
 
 ```text
-category agent-style-sheets ctpp-language-icons chrome://ctpp/skin/languages.css
+style chrome://komodo/content/komodo.xul chrome://ctpp/skin/languages.css
 ```
 
-Поэтому chrome-ресурсы должны реально присутствовать в установленном XPI; именно для этого поддерживаемая сборка использует `--unjarred`.
+`skin/languages.css` переопределяет изображение для `language="CTPP"`, а SVG расположен в `skin/ctpp.svg`.
+
+XPI должен собираться через `koext build --unjarred`; иначе SDK помещает skin в JAR, и chrome URL выше не разрешается в упакованный stylesheet ожидаемым способом.
 
 ## Структура проекта
 
@@ -75,8 +70,7 @@ category agent-style-sheets ctpp-language-icons chrome://ctpp/skin/languages.css
 - `pylib/` — интеграция Code Intelligence/CILE;
 - `templates/` — шаблоны новых файлов;
 - `skin/` — ресурсы интерфейса, включая `languages.css` и `ctpp.svg`;
-- `content/` — прочие chrome-ресурсы при необходимости;
-- `build.sh` — поддерживаемый способ сборки под Komodo 9.
+- `content/` — прочие chrome-ресурсы при необходимости.
 
 ## Совместимость
 
@@ -97,11 +91,7 @@ category agent-style-sheets ctpp-language-icons chrome://ctpp/skin/languages.css
 
 После этого запустите Komodo снова.
 
-При проблемах с иконкой проверьте, что XPI содержит `skin/languages.css` и `skin/ctpp.svg` как обычные каталоги верхнего уровня, а не только внутри `ctpp_language.jar`:
-
-```bash
-unzip -l ctpp_language-1.3-ko.xpi | grep -E 'skin/(languages\.css|ctpp\.svg)|ctpp_language\.jar'
-```
+Если Code Intelligence выдаёт исключение при разборе постороннего JavaScript-файла, это отдельная проблема и не связано непосредственно с регистрацией языка CTPP.
 
 ## Лицензия
 
