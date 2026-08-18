@@ -49,22 +49,21 @@ ctpp_language-1.3-ko.xpi
 
 ## Language icon
 
-Version 1.3 uses Komodo's `agent-style-sheets` mechanism for the CTPP language icon.
-
-The stylesheet is registered from `skin/languages.css`, following the same pattern used by Komodo's own language icons:
+Version 1.3 loads `skin/languages.css` into Komodo's main chrome through a small valid XUL overlay. The stylesheet is also registered through `agent-style-sheets` as a fallback.
 
 ```text
+overlay chrome://komodo/content/komodo.xul chrome://ctpp/content/overlay.xul
 category agent-style-sheets ctpp-language-icons chrome://ctpp/skin/languages.css
 ```
 
-The SVG itself is stored in `skin/ctpp.svg`.
-
-Older revisions tried to inject the stylesheet through an XUL overlay. That approach was removed because Komodo 9 could emit errors such as:
+The overlay contains only the stylesheet declaration and an empty XUL `overlay` element. This is intentionally different from an earlier broken revision where `overlay.xul` was empty and Komodo reported:
 
 ```text
 no element found in chrome://ctpp/content/overlay.xul
 Failed to load overlay from chrome://ctpp/content/overlay.xul
 ```
+
+The SVG itself is stored in `skin/ctpp.svg`.
 
 ## Project layout
 
@@ -73,7 +72,7 @@ Failed to load overlay from chrome://ctpp/content/overlay.xul
 - `pylib/` — Code Intelligence/CILE integration;
 - `templates/` — new-file templates;
 - `skin/` — UI resources, including `languages.css` and `ctpp.svg`;
-- `content/` — other chrome-package resources when needed.
+- `content/` — chrome resources, including the language-icon overlay.
 
 ## Compatibility
 
