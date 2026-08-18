@@ -2,4 +2,5 @@ content ctpp content/
 skin ctpp classic/1.0 skin/
 locale ctpp en-US locale/en-US/
 manifest components/component.manifest
+overlay chrome://komodo/content/komodo.xul chrome://ctpp/content/overlay.xul
 category agent-style-sheets ctpp-language-icons chrome://ctpp/skin/languages.css
