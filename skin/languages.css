@@ -1,5 +1,7 @@
-/* Komodo 9 language-menu/status-bar icon. */
+/* CTPP icon in Komodo's language menu, trees and status bar. */
 .languageicon[language="CTPP"],
-treechildren::-moz-tree-image(LanguageCTPP) {
+menuitem.languageicon[language="CTPP"],
+treechildren::-moz-tree-image(LanguageCTPP),
+toolbarbutton[anonid="statusbar-language-menu"][language="CTPP"] {
     list-style-image: url("chrome://ctpp/skin/ctpp.svg") !important;
 }
