@@ -1,81 +1,101 @@
 # CTPP language support for Komodo
 
-Расширение добавляет поддержку шаблонов **CTPP2 / CT++** в Komodo IDE и Komodo Edit.
+**English** | [Русский](docs/i18n/README.ru.md)
 
-Поддерживаются файлы `*.ctpp`, смешанная разметка HTML5, CSS и JavaScript, а также шаблонные конструкции CTPP. В проект также входят UDL-описания для интеграции с Underscore templates.
+This extension adds **CTPP2 / CT++** template support to Komodo IDE and Komodo Edit.
 
-## Возможности
+It registers the `CTPP` language for `*.ctpp` files, provides syntax highlighting for mixed CTPP/HTML5/CSS/JavaScript templates, and includes UDL support used by the project for Underscore templates.
 
-- отдельный язык `CTPP` в Komodo;
-- подсветка синтаксиса CTPP в `*.ctpp`;
-- поддержка HTML5/CSS/JavaScript внутри шаблонов;
-- шаблоны новых CTPP-файлов;
-- компоненты для lint/code intelligence;
-- отдельная иконка языка CTPP в интерфейсе Komodo;
-- поддержка Komodo IDE и Komodo Edit версий 6–9.
+## Features
 
-Полноценный современный Code Intelligence для CTPP пока не реализован.
+- dedicated `CTPP` language in Komodo;
+- syntax highlighting for `*.ctpp` files;
+- HTML5, CSS and JavaScript sublanguages inside templates;
+- CTPP file templates;
+- linter and Code Intelligence/CILE integration components;
+- dedicated CTPP icon for files and language UI;
+- compatibility with Komodo IDE and Komodo Edit 6–9.
 
-## Установка
+Full modern Code Intelligence for CTPP is not implemented yet.
 
-Соберите XPI или используйте готовый пакет релиза, после чего установите его через менеджер дополнений Komodo.
+## Installation
 
-После обновления расширения рекомендуется полностью закрыть Komodo и удалить startup cache:
+Install the XPI package through Komodo's Add-ons Manager.
+
+After updating the extension, fully close Komodo and clear its startup cache before starting it again:
 
 ```bash
 rm -rf ~/.komodoide/9.3/XRE/startupCache
 ```
 
-Затем запустите Komodo снова.
+For Komodo Edit, use the corresponding profile directory if it differs on your system.
 
-## Сборка
+## Building
 
-Komodo 9 поставляется со своим Python 2.7 (`mozpython`). На современных Linux-системах команда `python` часто отсутствует, поэтому надёжный способ сборки выглядит так:
+Komodo 9 ships with its own Python 2.7 runtime, `mozpython`. On modern Linux systems the generic `python` command may be absent, so the reliable build command is:
 
 ```bash
-/home/neolite/Komodo-IDE-9/lib/mozilla/mozpython \
-    /home/neolite/Komodo-IDE-9/lib/sdk/bin/koext build
+KOMODO_HOME="${KOMODO_HOME:-$HOME/Komodo-IDE-9}"
+
+"$KOMODO_HOME/lib/mozilla/mozpython" \
+    "$KOMODO_HOME/lib/sdk/bin/koext" build
 ```
 
-Если Komodo установлен в другом каталоге, замените `/home/neolite/Komodo-IDE-9` на свой путь.
-
-Успешная сборка создаёт файл примерно такого вида:
+A successful build produces an XPI similar to:
 
 ```text
 ctpp_language-1.3-ko.xpi
 ```
 
-## Иконка языка
+## Language icon
 
-Начиная с версии 1.3 иконка CTPP подключается через штатную категорию `agent-style-sheets`, без XUL overlay.
+Version 1.3 uses Komodo's `agent-style-sheets` mechanism for the CTPP language icon.
 
-Это важно для Komodo 9: старый вариант с пустым `overlay.xul` мог приводить к ошибкам загрузки вида:
+The stylesheet is registered from `skin/languages.css`, following the same pattern used by Komodo's own language icons:
+
+```text
+category agent-style-sheets ctpp-language-icons chrome://ctpp/skin/languages.css
+```
+
+The SVG itself is stored in `skin/ctpp.svg`.
+
+Older revisions tried to inject the stylesheet through an XUL overlay. That approach was removed because Komodo 9 could emit errors such as:
 
 ```text
 no element found in chrome://ctpp/content/overlay.xul
 Failed to load overlay from chrome://ctpp/content/overlay.xul
 ```
 
-CSS для иконки расположен в `content/languages.css`, а сам SVG — в `skin/ctpp.svg`.
+## Project layout
 
-## Структура проекта
+- `udl/` — UDL definitions and language-family transitions;
+- `components/` — language registration and linter components;
+- `pylib/` — Code Intelligence/CILE integration;
+- `templates/` — new-file templates;
+- `skin/` — UI resources, including `languages.css` and `ctpp.svg`;
+- `content/` — other chrome-package resources when needed.
 
-- `udl/` — UDL-описания и переходы между языковыми семействами;
-- `components/` — регистрация языка и linter-компоненты;
-- `pylib/` — Code Intelligence/CILE-интеграция;
-- `templates/` — шаблоны новых файлов;
-- `content/` — ресурсы, загружаемые через chrome package;
-- `skin/` — визуальные ресурсы, включая `ctpp.svg`.
+## Compatibility
 
-## Совместимость
-
-Основная проверенная конфигурация:
+Primary tested configuration:
 
 - Komodo IDE 9.3.2;
 - Linux x86_64.
 
-Расширение по `install.rdf` также допускает Komodo IDE/Edit 6–9.
+`install.rdf` allows Komodo IDE and Komodo Edit versions 6 through 9.
 
-## Лицензия
+## Troubleshooting
 
-MIT License. См. `LICENSE`.
+If a newly installed version is not reflected in the UI, close Komodo completely and remove:
+
+```text
+~/.komodoide/9.3/XRE/startupCache
+```
+
+Then start Komodo again.
+
+If Code Intelligence reports an exception while scanning an unrelated JavaScript file, that is separate from CTPP language registration and should be diagnosed from the Komodo log independently.
+
+## License
+
+MIT License. See [LICENSE](LICENSE).
