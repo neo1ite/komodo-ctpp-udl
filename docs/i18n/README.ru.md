@@ -4,19 +4,23 @@
 
 Это расширение добавляет поддержку шаблонов **CTPP2 / CT++** в Komodo IDE и Komodo Edit.
 
-Оно регистрирует язык `CTPP` для файлов `*.ctpp`, обеспечивает подсветку смешанных CTPP/HTML5/CSS/JavaScript-шаблонов и содержит UDL-поддержку для Underscore templates.
+Оно регистрирует язык `CTPP` для файлов `*.ctpp`, обеспечивает подсветку смешанных CTPP/HTML5/CSS/JavaScript-шаблонов, поддержку Underscore templates, линтинг и интеграцию с Code Intelligence.
 
 ## Возможности
 
 - отдельный язык `CTPP` в Komodo;
 - подсветка синтаксиса `*.ctpp`;
 - HTML5, CSS и JavaScript как вложенные языки внутри шаблонов;
+- подсветка CTPP внутри HTML-атрибутов, атрибутов `<script>` и JavaScript-строк;
+- подсветка Underscore templates в HTML- и JavaScript-контекстах;
+- HTML5-линтинг с предварительной обработкой CTPP;
+- **Code Intelligence 2.0:** регистрация CTPP в CodeIntel и автодополнение тегов `TMPL_*`;
+- штатный HTML5/CSS/JavaScript CodeIntel внутри смешанного CTPP-документа;
 - шаблоны новых CTPP-файлов;
-- компоненты linter и Code Intelligence/CILE;
 - отдельная иконка CTPP для файлов и элементов интерфейса языка;
 - совместимость с Komodo IDE и Komodo Edit версий 6–9.
 
-Полноценный современный Code Intelligence для CTPP пока не реализован.
+Следующие этапы CodeIntel — expressions, CILE, Go to Definition, переменные и Code Browser/project index — зафиксированы в [дорожной карте](../CODEINTEL.ru.md).
 
 ## Установка
 
@@ -27,6 +31,8 @@
 ```bash
 rm -rf ~/.komodoide/9.3/XRE/startupCache
 ```
+
+После изменений CodeIntel важно полностью завершить Komodo, чтобы при следующем запуске был создан новый backend-процесс CodeIntel и заново загружены модули расширения из `pylib/`.
 
 ## Сборка
 
@@ -41,19 +47,33 @@ KOMODO_HOME="${KOMODO_HOME:-$HOME/Komodo-IDE-9}"
     "$KOMODO_HOME/lib/sdk/bin/koext" build --unjarred
 ```
 
-Успешная сборка версии 1.3 создаёт:
+Успешная сборка версии 2.0 создаёт:
 
 ```text
-ctpp_language-1.3-ko.xpi
+ctpp_language-2.0-ko.xpi
 ```
 
 В выводе сборки должны присутствовать отдельные каталоги `skin/` и `content/`, а файла `ctpp_language.jar` быть не должно.
+
+## Code Intelligence 2.0
+
+Версия 2.0 реализует первый рабочий слой CodeIntel для CTPP:
+
+- отдельный `LangInfo` для `CTPP`, устраняющий предупреждение `Unable to retrieve langinfo for 'CTPP'`;
+- использование семейства `TPL_*` вместо оставшегося от генератора заглушечного `SSL_*`;
+- автоматическое дополнение тегов после `<TMPL_` и после двух введённых символов имени;
+- явное дополнение по `Ctrl+J` для частично введённого `TMPL_*`;
+- дополнение контейнерных тегов в закрывающей форме `</TMPL_...>`;
+- штатное HTML5/XML-дополнение в HTML-частях шаблона;
+- делегирование JavaScript и CSS штатным CodeIntel/CILE-драйверам Komodo.
+
+Дополнение выражений внутри CTPP сознательно оставлено на версию 2.1.
 
 ## Иконка языка
 
 Иконки файлов/вкладок CTPP разрешаются через файловый механизм Komodo. Список языков использует другой путь интерфейса: Komodo создаёт пункты с классом `languageicon` и атрибутом `language="CTPP"`.
 
-Версия 1.3 подключает CTPP stylesheet непосредственно к основному chrome Komodo:
+Расширение подключает CTPP stylesheet непосредственно к основному chrome Komodo:
 
 ```text
 style chrome://komodo/content/komodo.xul chrome://ctpp/skin/languages.css
@@ -67,7 +87,7 @@ XPI должен собираться через `koext build --unjarred`; ин�
 
 - `udl/` — UDL-описания и переходы между языковыми семействами;
 - `components/` — регистрация языка и linter-компоненты;
-- `pylib/` — интеграция Code Intelligence/CILE;
+- `pylib/` — Code Intelligence, LangInfo и будущая CILE-интеграция;
 - `templates/` — шаблоны новых файлов;
 - `skin/` — ресурсы интерфейса, включая `languages.css` и `ctpp.svg`;
 - `content/` — прочие chrome-ресурсы при необходимости.
@@ -91,7 +111,7 @@ XPI должен собираться через `koext build --unjarred`; ин�
 
 После этого запустите Komodo снова.
 
-Если Code Intelligence выдаёт исключение при разборе постороннего JavaScript-файла, это отдельная проблема и не связано непосредственно с регистрацией языка CTPP.
+Если после установки 2.0 остаётся старое состояние CodeIntel, убедитесь, что завершены все процессы Komodo: CodeIntel работает в отдельном backend-процессе и должен заново загрузить `pylib/` расширения.
 
 ## Лицензия
 

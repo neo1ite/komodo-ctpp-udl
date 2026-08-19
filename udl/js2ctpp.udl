@@ -1,13 +1,14 @@
 family csl
 
+# CTPP внутри JavaScript-строк.
 state IN_CSL_SSTRING:
-  /<\/?(?i:TMPL_(?:var|if|elsif|else|unless|loop|foreach|udf|include|comment|block|call))\b/ : \
+  /<\/?(?i:TMPL_)/ : \
     paint(upto, CSL_STRING), \
     paint(include, TPL_OPERATOR), \
-    spush_check(IN_CSL_SSTRING), => IN_TPL_DEFAULT
+    spush_check(IN_CSL_SSTRING), => IN_TPL_TAGNAME
 
 state IN_CSL_DSTRING:
-  /<\/?(?i:TMPL_(?:var|if|elsif|else|unless|loop|foreach|udf|include|comment|block|call))\b/ : \
+  /<\/?(?i:TMPL_)/ : \
     paint(upto, CSL_STRING), \
     paint(include, TPL_OPERATOR), \
-    spush_check(IN_CSL_DSTRING), => IN_TPL_DEFAULT
+    spush_check(IN_CSL_DSTRING), => IN_TPL_TAGNAME

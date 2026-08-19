@@ -1,5 +1,7 @@
-# Переходники (их порядок важен: сначала transitions, потом lexers)
+# Переходники. Специальные CTPP-переходы должны идти раньше штатных
+# HTML->JavaScript переходов.
 include "html2ctpp.udl"
+include "htmljs2ctpp.udl"
 include "html2underscore.udl"
 include "html2js.udl"
 include "html2css.udl"
@@ -16,6 +18,6 @@ include "html.udl"
 include "csslex.udl"
 include "jslex.udl"
 
-# Наш CTPP (template family) + Underscore (client-side family like js)
+# CTPP (template family) + Underscore (client-side family like JS)
 include "utjslex.udl"
 include "ctpplex.udl"

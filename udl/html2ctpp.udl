@@ -1,13 +1,12 @@
 family markup
 
-# В CTPP2 теги case-insensitive, поэтому используем (?i:...)
-# Список тегов: var/if/elsif/else/unless/loop/foreach/udf/include/comment/block/call
-# (см. CTPP2 tags) :contentReference[oaicite:5]{index=5}
+# Переключаемся в TPL сразу после префикса TMPL_. Это позволяет CodeIntel
+# работать ещё до того, как имя тега введено целиком.
 state IN_M_DEFAULT:
-  /<\/?(?i:TMPL_(?:var|if|elsif|else|unless|loop|foreach|udf|include|comment|block|call))\b/ : \
+  /<\/?(?i:TMPL_)/ : \
     paint(upto, M_DEFAULT), \
     paint(include, TPL_OPERATOR), \
-    spush_check(IN_M_DEFAULT), => IN_TPL_DEFAULT
+    spush_check(IN_M_DEFAULT), => IN_TPL_TAGNAME
 
   /<!--\s*(?i:TMPL_(?:var|if|elsif|else|unless|loop|foreach|udf|include|comment|block|call))\b/ : \
     paint(upto, M_DEFAULT), \
@@ -15,19 +14,19 @@ state IN_M_DEFAULT:
     spush_check(IN_M_DEFAULT), => IN_TPL_CTPP_HTML_COMMENT
 
 state IN_M_STAG_ATTR_DSTRING:
-  /<\/?(?i:TMPL_(?:var|if|elsif|else|unless|loop|foreach|udf|include|comment|block|call))\b/ : \
+  /<\/?(?i:TMPL_)/ : \
     paint(upto, M_STRING), \
     paint(include, TPL_OPERATOR), \
-    spush_check(IN_M_STAG_ATTR_DSTRING), => IN_TPL_DEFAULT
+    spush_check(IN_M_STAG_ATTR_DSTRING), => IN_TPL_TAGNAME
 
 state IN_M_STAG_ATTR_SSTRING:
-  /<\/?(?i:TMPL_(?:var|if|elsif|else|unless|loop|foreach|udf|include|comment|block|call))\b/ : \
+  /<\/?(?i:TMPL_)/ : \
     paint(upto, M_STRING), \
     paint(include, TPL_OPERATOR), \
-    spush_check(IN_M_STAG_ATTR_SSTRING), => IN_TPL_DEFAULT
+    spush_check(IN_M_STAG_ATTR_SSTRING), => IN_TPL_TAGNAME
 
 state IN_M_STAG_ATTR_USTRING:
-  /<\/?(?i:TMPL_(?:var|if|elsif|else|unless|loop|foreach|udf|include|comment|block|call))\b/ : \
+  /<\/?(?i:TMPL_)/ : \
     paint(upto, M_STRING), \
     paint(include, TPL_OPERATOR), \
-    spush_check(IN_M_STAG_ATTR_USTRING), => IN_TPL_DEFAULT
+    spush_check(IN_M_STAG_ATTR_USTRING), => IN_TPL_TAGNAME
