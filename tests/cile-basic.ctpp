@@ -1,0 +1,30 @@
+<TMPL_include 'includes/header.ctpp'>
+
+<TMPL_block 'card' args(title, body)>
+    <article>
+        <h2><TMPL_var title></h2>
+        <div><TMPL_var body></div>
+        <script>
+            window.cardTitle = '<TMPL_var title>';
+        </script>
+        <style>
+            .card { display: block; }
+        </style>
+    </article>
+</TMPL_block>
+
+<TMPL_call 'card' args('Hello', content)>
+<TMPL_call dynamic_block>
+
+<TMPL_comment>
+    <TMPL_block 'ignored' args(x)>
+    </TMPL_block>
+    <TMPL_call 'ignored'>
+    <TMPL_include 'ignored.ctpp'>
+</TMPL_comment>
+
+<TMPL_block 'comparison'>
+    <TMPL_if (x > 1 && y != 0)>
+        <TMPL_var x>
+    </TMPL_if>
+</TMPL_block>
