@@ -1,6 +1,6 @@
-# CTPP language support for Komodo
+# Komodo CTPP UDL
 
-**English** | [Русский](docs/i18n/README.ru.md)
+[Русский](docs/i18n/README.ru.md) | **English**
 
 This extension adds **CTPP2 / CT++** template support to Komodo IDE and Komodo Edit.
 
@@ -15,6 +15,7 @@ It registers the `CTPP` language for `*.ctpp` files, provides syntax highlightin
 - Underscore template highlighting in HTML and JavaScript contexts;
 - HTML5-based linting with CTPP sanitizing;
 - **Code Intelligence 2.0:** CTPP language registration in CodeIntel and autocomplete for `TMPL_*` tags;
+- automatic handoff from the HTML5 tag popup to CTPP completion once a `<TMPL_`/`</TMPL_` prefix is recognized;
 - native HTML5, CSS and JavaScript CodeIntel delegation inside mixed CTPP documents;
 - CTPP file templates;
 - dedicated CTPP icon for files and language UI;
@@ -24,9 +25,9 @@ Further CodeIntel stages (expressions, CILE, Go to Definition, variables, Code B
 
 ## Installation
 
-Install the XPI package through Komodo's Add-ons Manager.
+Install the XPI using Komodo's Add-ons manager.
 
-After updating a development build, fully close Komodo and clear its startup cache before starting it again:
+After updating a development build, fully close Komodo and clear its startup cache:
 
 ```bash
 rm -rf ~/.komodoide/9.3/XRE/startupCache
@@ -38,7 +39,7 @@ For CodeIntel changes it is also useful to restart Komodo completely so that the
 
 Komodo 9 ships with its own Python 2.7 runtime, `mozpython`. On modern Linux systems the generic `python` command may be absent, so build through Komodo's runtime.
 
-**Important:** use `--unjarred`. Komodo SDK otherwise packs `content/`, `skin/` and `locale/` into `ctpp_language.jar`, while this extension's chrome manifest addresses `chrome://ctpp/skin/languages.css` and `ctpp.svg` as ordinary chrome directories. The language-menu icon therefore requires the unjarred build.
+**Important:** use `--unjarred`. The extension registers `content/` and `skin/` through chrome URLs, and CodeIntel 2.0 also loads a small UI overlay from `content/` to hand an already-open HTML5 completion popup over to CTPP after the lexer recognizes a `TMPL_` prefix.
 
 ```bash
 KOMODO_HOME="${KOMODO_HOME:-$HOME/Komodo-IDE-9}"
@@ -59,13 +60,14 @@ The build output must contain top-level `skin/` and `content/` directories and m
 
 Version 2.0 introduces the first functional CTPP CodeIntel layer:
 
-- explicit `LangInfo` registration for `CTPP`, removing the `Unable to retrieve langinfo for 'CTPP'` warning;
+- explicit `LangInfo` registration for `CTPP`;
 - `TPL_*`-based CodeIntel instead of the old generated `SSL_*` stub;
 - automatic `TMPL_*` tag completion after `<TMPL_` and after two characters of a tag name;
 - explicit completion (`Ctrl+J`) for a partially typed `TMPL_*` tag;
 - container-tag completion for closing forms such as `</TMPL_...>`;
 - HTML5/XML completion in markup areas;
-- JavaScript and CSS CodeIntel/CILE delegation in their respective UDL families.
+- JavaScript and CSS CodeIntel/CILE delegation in their respective UDL families;
+- handoff from the active HTML5 tag completion popup to the CTPP popup when the typed text becomes an incomplete CTPP tag.
 
 Expression completion is intentionally deferred to version 2.1.
 
@@ -73,24 +75,16 @@ Expression completion is intentionally deferred to version 2.1.
 
 CTPP file/tab icons are resolved through Komodo's file-icon machinery. The language selector is a different UI path: Komodo creates menu items with class `languageicon` and the attribute `language="CTPP"`.
 
-The extension injects the CTPP language CSS directly into the main Komodo chrome:
+The extension injects the CTPP language CSS directly into the main Komodo chrome.
 
-```text
-style chrome://komodo/content/komodo.xul chrome://ctpp/skin/languages.css
-```
-
-The stylesheet overrides the language-menu image for `language="CTPP"`; the SVG itself is stored in `skin/ctpp.svg`.
-
-The XPI must be built with `koext build --unjarred`, otherwise Komodo SDK places the skin inside a JAR and the chrome URL above does not resolve to the packaged stylesheet as intended.
-
-## Project layout
+## Project structure
 
 - `udl/` — UDL definitions and language-family transitions;
 - `components/` — language registration and linter components;
 - `pylib/` — Code Intelligence, LangInfo and future CILE integration;
+- `content/` — Komodo UI integration, including the CTPP completion handoff bridge;
 - `templates/` — new-file templates;
-- `skin/` — UI resources, including `languages.css` and `ctpp.svg`;
-- `content/` — other chrome resources when needed.
+- `skin/` — UI resources, including `languages.css` and `ctpp.svg`.
 
 ## Compatibility
 
@@ -99,11 +93,11 @@ Primary tested configuration:
 - Komodo IDE 9.3.2 build 88191;
 - Linux x86_64.
 
-`install.rdf` allows Komodo IDE and Komodo Edit versions 6 through 9.
+`install.rdf` allows Komodo IDE and Komodo Edit versions 6–9.
 
-## Troubleshooting
+## Diagnostics
 
-If a newly installed development build is not reflected in the UI, close Komodo completely and remove:
+If a newly installed development build is not reflected in the UI, close Komodo and remove:
 
 ```text
 ~/.komodoide/9.3/XRE/startupCache
