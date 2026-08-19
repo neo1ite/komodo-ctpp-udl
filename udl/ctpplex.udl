@@ -19,40 +19,74 @@ state IN_TPL_TAGNAME:
 
 # Мы заходим сюда после имени TMPL_*.
 state IN_TPL_DEFAULT:
-  '/>' : \
-    paint(upto, TPL_DEFAULT), \
-    paint(include, TPL_OPERATOR), spop_check, => IN_M_DEFAULT
-  '>'  : \
-    paint(upto, TPL_DEFAULT), \
-    paint(include, TPL_OPERATOR), spop_check, => IN_M_DEFAULT
+  '/>' : paint(upto, TPL_DEFAULT), paint(include, TPL_OPERATOR), spop_check, => IN_M_DEFAULT
+  '>'  : paint(upto, TPL_DEFAULT), paint(include, TPL_OPERATOR), spop_check, => IN_M_DEFAULT
 
   /[ \t\r\n]+/ : paint(include, TPL_DEFAULT)
 
-  # строки
-  '"'  : paint(include, TPL_STRING), => IN_TPL_DQ
-  "'"  : paint(include, TPL_STRING), => IN_TPL_SQ
+  # Строки возвращаются именно в тот expression-state, из которого вошли.
+  '"' : paint(include, TPL_STRING), spush_check(IN_TPL_DEFAULT), => IN_TPL_DQ
+  "'" : paint(include, TPL_STRING), spush_check(IN_TPL_DEFAULT), => IN_TPL_SQ
 
-  # числа
+  # Вложенные () и [] важны не только для подсветки: внутри них символ '>'
+  # является оператором сравнения, а не концом TMPL-тега.
+  '(' : paint(include, TPL_OPERATOR), spush_check(IN_TPL_DEFAULT), => IN_TPL_PAREN
+  '[' : paint(include, TPL_OPERATOR), spush_check(IN_TPL_DEFAULT), => IN_TPL_BRACKET
+
   /\b\d+(?:\.\d+)?\b/ : paint(include, TPL_NUMBER)
 
-  # идентификаторы/имена переменных/функций
-  /[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*/ : paint(include, TPL_IDENTIFIER)
+  # Built-ins из waaeer/ctpp doc/template_language.rst.
+  /(?i:(?:_|AVG|BASE64_DECODE|BASE64_ENCODE|CAST|CONCAT|CONTEXT|DATE_FORMAT|DEFAULT|DEFINED|ERROR|FORM_PARAM|GETTEXT|GET_TYPE|HASH_KEYS|HMAC_MD5|HOSTNAME|HREF_PARAM|HTMLESCAPE|ICONV|IN_ARRAY|IN_SET|JSONESCAPE|JSON|LIST_ELEMENT|LIST|LOG|MAX|MB_SIZE|MB_SUBSTR|MB_TRUNCATE|MD5|MIN|NUM_FORMAT|OBJ_DUMP|RANDOM|SIZE|SPRINTF|SUBSTR|TRUNCATE|URIESCAPE|URLESCAPE|VERSION|WMLESCAPE|XMLESCAPE))\b/ : paint(include, TPL_WORD)
 
-  # операторы/пунктуация. '-' перед '>' автоматически поддерживает форму ->.
-  /[=(),:\[\]{}.+\-*\/%!<>]/ : paint(include, TPL_OPERATOR)
+  # Текстовые операторы и служебные слова expression syntax.
+  /(?i:(?:and|div|eq|ge|gt|le|lt|mod|ne|or|as|args))\b/ : paint(include, TPL_WORD)
 
+  # Идентификатор намеренно не поглощает точки: '.' — оператор member access.
+  /[A-Za-z_][A-Za-z0-9_]*/ : paint(include, TPL_IDENTIFIER)
+
+  # Операторы/пунктуация. '-' перед '>' поддерживает whitespace-control ->.
+  /[=(),:\[\]{}.+\-*\/%!<>|&]/ : paint(include, TPL_OPERATOR)
+
+  /./ : paint(include, TPL_DEFAULT)
+
+state IN_TPL_PAREN:
+  /[ \t\r\n]+/ : paint(include, TPL_DEFAULT)
+  '"' : paint(include, TPL_STRING), spush_check(IN_TPL_PAREN), => IN_TPL_DQ
+  "'" : paint(include, TPL_STRING), spush_check(IN_TPL_PAREN), => IN_TPL_SQ
+  '(' : paint(include, TPL_OPERATOR), spush_check(IN_TPL_PAREN), => IN_TPL_PAREN
+  ')' : paint(include, TPL_OPERATOR), spop_check, => IN_TPL_DEFAULT
+  '[' : paint(include, TPL_OPERATOR), spush_check(IN_TPL_PAREN), => IN_TPL_BRACKET
+  /\b\d+(?:\.\d+)?\b/ : paint(include, TPL_NUMBER)
+  /(?i:(?:_|AVG|BASE64_DECODE|BASE64_ENCODE|CAST|CONCAT|CONTEXT|DATE_FORMAT|DEFAULT|DEFINED|ERROR|FORM_PARAM|GETTEXT|GET_TYPE|HASH_KEYS|HMAC_MD5|HOSTNAME|HREF_PARAM|HTMLESCAPE|ICONV|IN_ARRAY|IN_SET|JSONESCAPE|JSON|LIST_ELEMENT|LIST|LOG|MAX|MB_SIZE|MB_SUBSTR|MB_TRUNCATE|MD5|MIN|NUM_FORMAT|OBJ_DUMP|RANDOM|SIZE|SPRINTF|SUBSTR|TRUNCATE|URIESCAPE|URLESCAPE|VERSION|WMLESCAPE|XMLESCAPE))\b/ : paint(include, TPL_WORD)
+  /(?i:(?:and|div|eq|ge|gt|le|lt|mod|ne|or|as|args))\b/ : paint(include, TPL_WORD)
+  /[A-Za-z_][A-Za-z0-9_]*/ : paint(include, TPL_IDENTIFIER)
+  /[=(),:\[\]{}.+\-*\/%!<>|&]/ : paint(include, TPL_OPERATOR)
+  /./ : paint(include, TPL_DEFAULT)
+
+state IN_TPL_BRACKET:
+  /[ \t\r\n]+/ : paint(include, TPL_DEFAULT)
+  '"' : paint(include, TPL_STRING), spush_check(IN_TPL_BRACKET), => IN_TPL_DQ
+  "'" : paint(include, TPL_STRING), spush_check(IN_TPL_BRACKET), => IN_TPL_SQ
+  '[' : paint(include, TPL_OPERATOR), spush_check(IN_TPL_BRACKET), => IN_TPL_BRACKET
+  ']' : paint(include, TPL_OPERATOR), spop_check, => IN_TPL_DEFAULT
+  '(' : paint(include, TPL_OPERATOR), spush_check(IN_TPL_BRACKET), => IN_TPL_PAREN
+  /\b\d+(?:\.\d+)?\b/ : paint(include, TPL_NUMBER)
+  /(?i:(?:_|AVG|BASE64_DECODE|BASE64_ENCODE|CAST|CONCAT|CONTEXT|DATE_FORMAT|DEFAULT|DEFINED|ERROR|FORM_PARAM|GETTEXT|GET_TYPE|HASH_KEYS|HMAC_MD5|HOSTNAME|HREF_PARAM|HTMLESCAPE|ICONV|IN_ARRAY|IN_SET|JSONESCAPE|JSON|LIST_ELEMENT|LIST|LOG|MAX|MB_SIZE|MB_SUBSTR|MB_TRUNCATE|MD5|MIN|NUM_FORMAT|OBJ_DUMP|RANDOM|SIZE|SPRINTF|SUBSTR|TRUNCATE|URIESCAPE|URLESCAPE|VERSION|WMLESCAPE|XMLESCAPE))\b/ : paint(include, TPL_WORD)
+  /(?i:(?:and|div|eq|ge|gt|le|lt|mod|ne|or|as|args))\b/ : paint(include, TPL_WORD)
+  /[A-Za-z_][A-Za-z0-9_]*/ : paint(include, TPL_IDENTIFIER)
+  /[=(),:\[\]{}.+\-*\/%!<>|&]/ : paint(include, TPL_OPERATOR)
   /./ : paint(include, TPL_DEFAULT)
 
 state IN_TPL_DQ:
   /\\./     : paint(include, TPL_STRING)
   /[^"\\]+/ : paint(include, TPL_STRING)
-  '"'       : paint(include, TPL_STRING), => IN_TPL_DEFAULT
+  '"'       : paint(include, TPL_STRING), spop_check, => IN_TPL_DEFAULT
   /./       : paint(include, TPL_STRING)
 
 state IN_TPL_SQ:
   /\\./     : paint(include, TPL_STRING)
   /[^'\\]+/ : paint(include, TPL_STRING)
-  "'"       : paint(include, TPL_STRING), => IN_TPL_DEFAULT
+  "'"       : paint(include, TPL_STRING), spop_check, => IN_TPL_DEFAULT
   /./       : paint(include, TPL_STRING)
 
 # Если зашли через <!-- TMPL_... то держим всё комментарием до -->
