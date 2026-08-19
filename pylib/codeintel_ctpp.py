@@ -524,14 +524,26 @@ class CTPPBuffer(UDLBuffer, XMLParsingBufferMixin):
 
 
 class CTPPCILEDriver(UDLCILEDriver):
-    """На 2.0/2.1 индексируем вложенные JavaScript/CSS штатными драйверами.
-
-    Собственный CTPP CILE запланирован на версию 2.2.
-    """
+    """Объединить штатный JS/CSS multi-lang CILE и собственный CTPP CILE."""
 
     lang = lang
     csl_lang = "JavaScript"
     css_lang = "CSS"
+
+    def scan_purelang(self, buf):
+        # UDLCILEDriver при отсутствии SSL использует JavaScript как master и
+        # передаёт CSS как slave. Сначала сохраняем это штатное поведение.
+        tree = UDLCILEDriver.scan_purelang(self, buf)
+
+        # Extension module dirs подключены import hook-ом Manager как
+        # codeintel2.<module>, что работает и во встроенном Python 2.7 Komodo.
+        try:
+            from codeintel2 import cile_ctpp
+        except ImportError:
+            # Fallback полезен для некоторых standalone SDK сценариев.
+            import cile_ctpp
+
+        return cile_ctpp.scan_buf(buf, tree=tree)
 
 
 def _register_extension_langinfo(mgr):
