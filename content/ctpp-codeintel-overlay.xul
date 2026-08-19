@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+
+<overlay id="ctppCodeIntelOverlay"
+         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+    <script type="application/javascript"
+            src="chrome://ctpp/content/ctpp-codeintel.js"/>
+</overlay>
