@@ -81,7 +81,11 @@ sh ./patch-komodo-codeintel.sh status
 sh ./patch-komodo-codeintel.sh install
 sh ./patch-komodo-codeintel.sh status
 
-# Roll back only this patch:
+# Re-running install is a no-op.
+sh ./patch-komodo-codeintel.sh install
+
+# Roll back only this patch; re-running uninstall is also a no-op.
+sh ./patch-komodo-codeintel.sh uninstall
 sh ./patch-komodo-codeintel.sh uninstall
 ```
 
@@ -94,7 +98,7 @@ The script:
 - never overwrites that original backup on repeated installs;
 - performs JAR replacement through a verified temporary copy;
 - is idempotent for both `install` and `uninstall`;
-- clears the Komodo startup cache after a state-changing operation.
+- clears the Komodo startup cache after install/uninstall.
 
 A raw unified diff of the core change is also stored in `patches/komodo-9-codeintel-autocomplete-retrigger.patch` for review.
 
