@@ -8,9 +8,9 @@ Komodo 9 SDK `codeintel` на некоторых Linux-сборках не за�
 нужный нам pipeline Manager -> UDLBuffer -> CTPPCILEDriver отдельно от этой
 проблемы SDK.
 
-Важно: тест выполняется встроенным mozpython (Python 2.7), отключает PyXPCOM и
-подставляет стандартный ElementTree вместо бинарного ciElementTree. Для CILE
-scanner/driver нам нужна семантика ElementTree, а не C-extension.
+Важно: тест выполняется встроенным mozpython (Python 2.7), вручную подключает
+Komodo Python library roots, отключает PyXPCOM и подставляет стандартный
+ElementTree вместо бинарного ciElementTree.
 """
 
 from __future__ import print_function
@@ -23,9 +23,24 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PYLIB_DIR = os.path.join(ROOT_DIR, "pylib")
 LEXER_DIR = os.path.join(ROOT_DIR, "build", "lexers")
 FIXTURE = os.path.join(ROOT_DIR, "tests", "cile-basic.ctpp")
+KOMODO_HOME = os.environ.get(
+    "KOMODO_HOME", os.path.expanduser("~/Komodo-IDE-9"))
+KOMODO_PYTHON = os.path.join(KOMODO_HOME, "lib", "mozilla", "python")
+KOMODO_PYTHON_KOMODO = os.path.join(KOMODO_PYTHON, "komodo")
 
 if not os.path.exists(os.path.join(LEXER_DIR, "CTPP.lexres")):
     raise SystemExit("build/lexers/CTPP.lexres not found; run ./build.sh first")
+
+manager_path = os.path.join(KOMODO_PYTHON_KOMODO, "codeintel2", "manager.py")
+if not os.path.exists(manager_path):
+    raise SystemExit("Komodo codeintel2/manager.py not found: %s" % manager_path)
+
+# Standalone mozpython starts with a much smaller sys.path than the running
+# Komodo application. The SDK helper normally prepares these paths itself,
+# but that helper crashes on ciElementTree.so before CodeIntel starts.
+for path in (KOMODO_PYTHON, KOMODO_PYTHON_KOMODO):
+    if path not in sys.path:
+        sys.path.insert(0, path)
 
 # Не даём standalone Manager подхватить PyXPCOM: SDK helper ломается раньше
 # запуска CodeIntel на данной Komodo 9 Linux installation.
@@ -129,6 +144,7 @@ def main():
         print("Mixed CILE smoke test: OK")
         print("runtime: %s" % sys.executable)
         print("python: %s" % sys.version.split()[0])
+        print("codeintel2: %s" % manager_path)
         print("blobs: %s" % ", ".join(sorted(blobs)))
         print("fixture: %s" % FIXTURE)
         return 0
