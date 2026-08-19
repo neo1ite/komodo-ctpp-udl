@@ -3,8 +3,11 @@
 
 """CILE scanner для CTPP / CT++ 2.8.
 
-На этапе CodeIntel 2.2 scanner индексирует структурные сущности, которые
-нужны следующим слоям CodeIntel:
+Основная среда выполнения — встроенный Python 2.7 Komodo IDE 9.3.2.
+Код намеренно остаётся совместимым и с Python 3, чтобы standalone smoke-test
+можно было запускать вне Komodo.
+
+На этапе CodeIntel 2.2 scanner индексирует структурные сущности:
 
 * определения ``TMPL_block`` и их ``args(...)``;
 * ссылки ``TMPL_call``;
@@ -13,11 +16,12 @@
 Go to Definition здесь намеренно не реализуется: это задача 2.3.
 Runtime-переменные и ``TMPL_foreach`` locals относятся к 2.4.
 
-Модуль можно запускать отдельно обычным Python для просмотра CIX:
+Standalone запуск:
 
-    python pylib/cile_ctpp.py tests/cile-basic.ctpp
+    ~/Komodo-IDE-9/lib/mozilla/mozpython \
+        pylib/cile_ctpp.py tests/cile-basic.ctpp
 
-В Komodo используется ``scan_buf()`` и ``ciElementTree``.
+Внутри Komodo используется ``scan_buf()`` и ``ciElementTree``.
 """
 
 from __future__ import print_function
@@ -31,7 +35,7 @@ import time
 try:
     import ciElementTree as ET
 except ImportError:
-    # Удобно для автономного smoke-test вне Komodo.
+    # Только для автономного smoke-test вне Komodo.
     from xml.etree import ElementTree as ET
 
 try:
@@ -53,6 +57,11 @@ try:
 except NameError:
     text_type = str
 
+try:
+    binary_type = bytes
+except NameError:
+    binary_type = str
+
 
 _TAG_START_RE = re.compile(
     r"<(?P<closing>/)?(?P<leading_dash>-)?TMPL_"
@@ -69,7 +78,7 @@ _DYNAMIC_TARGET_RE = re.compile(
 def _as_text(value):
     if isinstance(value, text_type):
         return value
-    if isinstance(value, bytes):
+    if isinstance(value, binary_type):
         return value.decode("utf-8", "replace")
     return text_type(value)
 
@@ -90,7 +99,7 @@ def _find_tag_end(text, pos):
     """Найти закрывающий ``>`` CTPP-тега.
 
     ``>`` внутри строк, ``()``, ``[]`` и ``{}`` является частью expression и
-    не завершает тег. Это соответствует lexer-поведению, реализованному в 2.1.
+    не завершает тег. Это соответствует lexer-поведению CodeIntel 2.1.
     """
     quote = None
     escaped = False
@@ -223,7 +232,9 @@ def _find_matching_paren(text, open_pos):
 def _split_top_level_commas(text):
     parts = []
     start = 0
-    paren = bracket = brace = 0
+    paren = 0
+    bracket = 0
+    brace = 0
     quote = None
     escaped = False
 
@@ -295,6 +306,8 @@ def _parse_call(tag):
     parsed = _read_quoted_head(body)
     if parsed is not None:
         name, rest = parsed
+        if not name:
+            return None
         return name, False, _extract_args(rest)
 
     # Канонический CT++ допускает <TMPL_call some_var>.
@@ -303,6 +316,10 @@ def _parse_call(tag):
         return None
     target = match.group(0)
     rest = body[match.end():]
+
+    # После dynamic target допускаем только пустой хвост или args(...).
+    if rest.strip() and _ARGS_RE.search(rest) is None:
+        return None
     return target, True, _extract_args(rest)
 
 
@@ -360,8 +377,9 @@ def _prepare_tree(path, mtime, lang, tree=None):
                 mtime=str(mtime),
             )
         else:
-            if not file_elem.get("path"):
-                file_elem.set("path", path)
+            # Multi-lang tree должен оставаться описанием исходного CTPP-файла.
+            file_elem.set("lang", lang)
+            file_elem.set("path", path)
             file_elem.set("mtime", str(mtime))
 
     _remove_existing_ctpp_blob(file_elem, lang)
@@ -377,7 +395,15 @@ def _prepare_tree(path, mtime, lang, tree=None):
 
 
 def _add_reference(blob, kind, name, line, raw, dynamic=False):
-    attributes = ["__hidden__", "__ctpp_reference__", "__ctpp_%s__" % kind]
+    # CIX не имеет отдельного reference element. Используем скрытую fabricated
+    # variable без нестандартного ilk: так generic Citadel/Code Browser не
+    # обязаны понимать новый ilk, а 2.3 сможет распознать ссылку по attributes.
+    attributes = [
+        "__hidden__",
+        "__fabricated__",
+        "__ctpp_reference__",
+        "__ctpp_%s__" % kind,
+    ]
     if dynamic:
         attributes.append("__dynamic__")
 
@@ -385,7 +411,6 @@ def _add_reference(blob, kind, name, line, raw, dynamic=False):
         blob,
         "variable",
         name=name,
-        ilk="reference",
         line=str(line),
         attributes=" ".join(attributes),
         doc=raw.strip(),
@@ -464,7 +489,7 @@ def scan_text(text, path, mtime=None, lang="CTPP", tree=None):
     """Просканировать raw CTPP text и вернуть CIX tree.
 
     Если ``tree`` передан, CTPP blob добавляется в уже построенный multi-lang
-    CIX. Это позволяет сохранить JavaScript/CSS CILE штатного UDL driver.
+    CIX. Это сохраняет JavaScript/CSS CILE штатного UDL driver.
     """
     text = _as_text(text)
     path = _normalise_path(path)
@@ -483,6 +508,21 @@ def scan_buf(buf, mtime=None, lang="CTPP", tree=None):
     return scan_text(text, path, mtime=mtime, lang=lang, tree=tree)
 
 
+def _write_stdout(data):
+    """Записать UTF-8 XML одинаково в Python 2.7 и Python 3."""
+    if isinstance(data, text_type):
+        data = data.encode("utf-8")
+
+    stream = getattr(sys.stdout, "buffer", None)
+    if stream is None:
+        # Python 2: sys.stdout принимает byte str.
+        sys.stdout.write(data)
+        sys.stdout.write("\n")
+    else:
+        stream.write(data)
+        stream.write(b"\n")
+
+
 def _main(argv):
     if len(argv) != 2:
         sys.stderr.write("usage: %s FILE.ctpp\n" % argv[0])
@@ -492,12 +532,7 @@ def _main(argv):
     with io.open(path, "r", encoding="utf-8", errors="replace") as stream:
         text = stream.read()
     tree = scan_text(text, path)
-
-    data = ET.tostring(tree, encoding="utf-8")
-    if not isinstance(data, text_type):
-        data = data.decode("utf-8")
-    sys.stdout.write(data)
-    sys.stdout.write("\n")
+    _write_stdout(ET.tostring(tree, encoding="utf-8"))
     return 0
 
 
