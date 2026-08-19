@@ -4,6 +4,7 @@
 """Code Intelligence для шаблонов CTPP."""
 
 import logging
+import os
 import re
 
 from codeintel2.common import TRG_FORM_CPLN, Trigger
@@ -27,9 +28,12 @@ except ImportError:
 lang = "CTPP"
 log = logging.getLogger("codeintel.ctpp")
 
-# Канонические имена тегов, поддерживаемых текущим UDL-лексером.
+# Канонический синтаксис для этого расширения — fork waaeer/ctpp (CT++ 2.8).
+# doc/template_language.rst перечисляет основные теги и отдельно документирует
+# TMPL_break. TMPL_loop/TMPL_udf в этой реализации языка не являются тегами.
 CTPP_TAGS = tuple(sorted((
     "TMPL_block",
+    "TMPL_break",
     "TMPL_call",
     "TMPL_comment",
     "TMPL_else",
@@ -37,24 +41,23 @@ CTPP_TAGS = tuple(sorted((
     "TMPL_foreach",
     "TMPL_if",
     "TMPL_include",
-    "TMPL_loop",
-    "TMPL_udf",
     "TMPL_unless",
     "TMPL_var",
+    "TMPL_verbose",
 )))
 
-# Теги, для которых имеет смысл предлагать закрывающую форму </TMPL_...>.
+# Теги, для которых существует закрывающая форма </TMPL_...>.
 CTPP_CONTAINER_TAGS = tuple(sorted((
     "TMPL_block",
     "TMPL_comment",
     "TMPL_foreach",
     "TMPL_if",
-    "TMPL_loop",
-    "TMPL_udf",
     "TMPL_unless",
+    "TMPL_verbose",
 )))
 
-_TAG_FRAGMENT_RE = re.compile(r"<(/?)(TMPL_[A-Za-z0-9_]*)$", re.I)
+# CT++ допускает <-TMPL_var ...-> как короткую форму управления пробелами.
+_TAG_FRAGMENT_RE = re.compile(r"<(/?)-?(TMPL_[A-Za-z0-9_]*)$", re.I)
 
 
 class CTPPLexer(UDLLexer):
@@ -75,7 +78,7 @@ class CTPPLangIntel(LangIntel):
         if pos <= 0:
             return None
 
-        # Ограничиваем окно: имя CTPP-тега заведомо существенно короче.
+        # Имя CTPP-тега короткое; небольшое окно не тянет весь документ.
         start = max(0, pos - 64)
         text = buf.accessor.text_range(start, pos)
         match = _TAG_FRAGMENT_RE.search(text)
@@ -93,8 +96,8 @@ class CTPPLangIntel(LangIntel):
         fragment, word_start, closing = info
         suffix_len = max(0, len(fragment) - len("TMPL_"))
 
-        # Автоматически показываем список сразу после TMPL_ и затем после
-        # двух введённых символов имени. Ctrl+J работает на любой длине.
+        # Автоматический popup: сразу после TMPL_, затем после двух символов
+        # имени. Явный Ctrl+J работает на любой длине фрагмента.
         if implicit and fragment.lower() != "tmpl_" and suffix_len != 2:
             return None
 
@@ -167,7 +170,7 @@ class CTPPLangIntel(LangIntel):
 class CTPPBuffer(UDLBuffer, XMLParsingBufferMixin):
     lang = lang
 
-    # Делегируем семейства штатным движкам Komodo.
+    # Делегируем UDL-семейства штатным движкам Komodo.
     m_lang = "HTML5"
     css_lang = "CSS"
     csl_lang = "JavaScript"
@@ -190,8 +193,50 @@ class CTPPCILEDriver(UDLCILEDriver):
     css_lang = "CSS"
 
 
+def _register_extension_langinfo(mgr):
+    """Подключить langinfo_*.py из pylib расширения к уже созданной lidb.
+
+    Manager CodeIntel создаёт default LangInfo Database *до* загрузки
+    extra_module_dirs. Поэтому наличие pylib/langinfo_ctpp.py само по себе
+    недостаточно: его нужно явно догрузить в существующую базу.
+    """
+    lidb = mgr.lidb
+
+    try:
+        lidb.langinfo_from_komodo_lang(lang, tryFallback=False)
+        return
+    except Exception:
+        pass
+
+    module_dir = os.path.dirname(__file__)
+    lidb._load_dir(module_dir)
+    if module_dir not in lidb.dirs:
+        lidb.dirs.append(module_dir)
+
+    # _load_dir() добавляет LangInfo-классы, но derived lookup tables могли
+    # быть построены раньше. Сбрасываем только кеши; следующий lookup
+    # штатно вызовет Database._build_tables().
+    for attr in (
+        "_langinfo_from_ext",
+        "_langinfo_from_filename",
+        "_langinfo_from_filename_re",
+        "_magic_table",
+        "_li_from_doctype_public_id",
+        "_li_from_doctype_system_id",
+        "_li_from_emacs_mode",
+        "_li_from_vi_filetype",
+        "_li_from_norm_komodo_lang",
+    ):
+        setattr(lidb, attr, None)
+
+    # Fail loudly in the CodeIntel log if extension LangInfo still did not load.
+    lidb.langinfo_from_komodo_lang(lang, tryFallback=False)
+
+
 def register(mgr):
     """Зарегистрировать поддержку CTPP в CodeIntel."""
+    _register_extension_langinfo(mgr)
+
     mgr.set_lang_info(
         lang,
         silvercity_lexer=CTPPLexer(),
