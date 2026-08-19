@@ -18,6 +18,8 @@ Code Intelligence развивается поэтапно, чтобы кажды
 - не сломать штатный HTML5/CSS/JavaScript CodeIntel в смешанных шаблонах;
 - оставить собственный CILE CTPP за рамками этого релиза.
 
+Особенность Komodo 9: `ko.codeintel.trigger()` содержит ранний `return`, если HTML5 autocomplete уже открыт. Из-за этого при вводе `<TMPL_` новый TPL/CTPP trigger не вычисляется. Для 2.0 это исправляется отдельным идемпотентным менеджером патча `patch-komodo-codeintel.sh`, который изменяет только `content/codeintel/codeintel.js` внутри `komodo.jar` и поддерживает команды `status`, `install` и `uninstall`.
+
 Проверка в Komodo 9.3.2:
 
 1. В логе нет `Unable to retrieve langinfo for 'CTPP'`.
@@ -29,6 +31,7 @@ Code Intelligence развивается поэтапно, чтобы кажды
 7. JavaScript autocomplete продолжает работать внутри `<script>`.
 8. CSS autocomplete продолжает работать внутри `<style>`.
 9. Поддерживается CT++ whitespace-control форма `<-TMPL_var ...->`.
+10. `sh ./patch-komodo-codeintel.sh status` корректно различает установленный и неустановленный патч; повторные `install`/`uninstall` безопасны.
 
 ## 2.1 — CTPP expressions
 
