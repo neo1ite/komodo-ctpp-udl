@@ -8,8 +8,9 @@ end_style   TPL_VARIABLE
 
 # Имя тега разбирается отдельно, чтобы TPL-family активировалось сразу после
 # <TMPL_ и CodeIntel мог дополнять ещё не законченное имя тега.
+# Канонический набор тегов соответствует waaeer/ctpp, CT++ 2.8.
 state IN_TPL_TAGNAME:
-  /(?i:(?:var|if|elsif|else|unless|loop|foreach|udf|include|comment|block|call))\b/ : paint(include, TPL_OPERATOR)
+  /(?i:(?:var|if|elsif|else|unless|foreach|include|comment|block|call|verbose|break))\b/ : paint(include, TPL_OPERATOR)
   /[A-Za-z_][A-Za-z0-9_]*/ : paint(include, TPL_IDENTIFIER)
   /[ \t\r\n]+/ : paint(include, TPL_DEFAULT), => IN_TPL_DEFAULT
   '/>' : paint(include, TPL_OPERATOR), spop_check, => IN_M_DEFAULT
@@ -37,7 +38,7 @@ state IN_TPL_DEFAULT:
   # идентификаторы/имена переменных/функций
   /[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*/ : paint(include, TPL_IDENTIFIER)
 
-  # операторы/пунктуация
+  # операторы/пунктуация. '-' перед '>' автоматически поддерживает форму ->.
   /[=(),:\[\]{}.+\-*\/%!<>]/ : paint(include, TPL_OPERATOR)
 
   /./ : paint(include, TPL_DEFAULT)
