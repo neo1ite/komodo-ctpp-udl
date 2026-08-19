@@ -15,7 +15,6 @@ It registers the `CTPP` language for `*.ctpp` files, provides syntax highlightin
 - Underscore template highlighting in HTML and JavaScript contexts;
 - HTML5-based linting with CTPP sanitizing;
 - **Code Intelligence 2.0:** CTPP language registration in CodeIntel and autocomplete for `TMPL_*` tags;
-- automatic handoff from the HTML5 tag popup to CTPP completion once a `<TMPL_`/`</TMPL_` prefix is recognized;
 - native HTML5, CSS and JavaScript CodeIntel delegation inside mixed CTPP documents;
 - CTPP file templates;
 - dedicated CTPP icon for files and language UI;
@@ -39,7 +38,7 @@ For CodeIntel changes it is also useful to restart Komodo completely so that the
 
 Komodo 9 ships with its own Python 2.7 runtime, `mozpython`. On modern Linux systems the generic `python` command may be absent, so build through Komodo's runtime.
 
-**Important:** use `--unjarred`. The extension registers `content/` and `skin/` through chrome URLs, and CodeIntel 2.0 also loads a small UI overlay from `content/` to hand an already-open HTML5 completion popup over to CTPP after the lexer recognizes a `TMPL_` prefix.
+**Important:** use `--unjarred`. The extension registers `content/`, `skin/` and `locale/` through chrome URLs.
 
 ```bash
 KOMODO_HOME="${KOMODO_HOME:-$HOME/Komodo-IDE-9}"
@@ -66,10 +65,38 @@ Version 2.0 introduces the first functional CTPP CodeIntel layer:
 - explicit completion (`Ctrl+J`) for a partially typed `TMPL_*` tag;
 - container-tag completion for closing forms such as `</TMPL_...>`;
 - HTML5/XML completion in markup areas;
-- JavaScript and CSS CodeIntel/CILE delegation in their respective UDL families;
-- handoff from the active HTML5 tag completion popup to the CTPP popup when the typed text becomes an incomplete CTPP tag.
+- JavaScript and CSS CodeIntel/CILE delegation in their respective UDL families.
 
 Expression completion is intentionally deferred to version 2.1.
+
+### Komodo 9 autocomplete retrigger patch
+
+Komodo 9 has an early return in `ko.codeintel.trigger()` when an autocomplete popup is already open. HTML5 opens its tag popup after `<`, so the core refuses to calculate the new CTPP trigger when LexUDL later switches from the markup (`M`) family to the template (`TPL`) family at `<TMPL_`.
+
+The repository contains an idempotent patch manager for this Komodo 9 behaviour:
+
+```bash
+# Komodo must be fully closed for install/uninstall.
+sh ./patch-komodo-codeintel.sh status
+sh ./patch-komodo-codeintel.sh install
+sh ./patch-komodo-codeintel.sh status
+
+# Roll back only this patch:
+sh ./patch-komodo-codeintel.sh uninstall
+```
+
+The script:
+
+- defaults to `$HOME/Komodo-IDE-9` and can be redirected with `KOMODO_HOME`;
+- modifies only `content/codeintel/codeintel.js` inside `lib/mozilla/chrome/komodo.jar`;
+- refuses to patch an unknown/incompatible CodeIntel implementation;
+- keeps the original JavaScript entry in `lib/mozilla/chrome/.ctpp-codeintel-patch/`;
+- never overwrites that original backup on repeated installs;
+- performs JAR replacement through a verified temporary copy;
+- is idempotent for both `install` and `uninstall`;
+- clears the Komodo startup cache after a state-changing operation.
+
+A raw unified diff of the core change is also stored in `patches/komodo-9-codeintel-autocomplete-retrigger.patch` for review.
 
 ## Language icon
 
@@ -82,7 +109,8 @@ The extension injects the CTPP language CSS directly into the main Komodo chrome
 - `udl/` — UDL definitions and language-family transitions;
 - `components/` — language registration and linter components;
 - `pylib/` — Code Intelligence, LangInfo and future CILE integration;
-- `content/` — Komodo UI integration, including the CTPP completion handoff bridge;
+- `patches/` — reference patches for Komodo 9 itself;
+- `patch-komodo-codeintel.sh` — idempotent Komodo 9 CodeIntel patch manager;
 - `templates/` — new-file templates;
 - `skin/` — UI resources, including `languages.css` and `ctpp.svg`.
 
@@ -106,6 +134,12 @@ If a newly installed development build is not reflected in the UI, close Komodo 
 Then start Komodo again.
 
 If the old CodeIntel state remains after installing 2.0, fully terminate all Komodo processes before restarting the IDE. CodeIntel runs in a separate backend process and must reload extension `pylib/` modules.
+
+Check the Komodo core patch independently with:
+
+```bash
+sh ./patch-komodo-codeintel.sh status
+```
 
 ## License
 
