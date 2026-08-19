@@ -16,6 +16,9 @@
 - `>` внутри строк и вложенных `()` / `[]` / `{}` не завершает CTPP-тег;
 - CTPP blob добавляется в mixed CIX после штатного JavaScript/CSS scan;
 - основной runtime для CILE зафиксирован как встроенный Python 2.7 Komodo 9;
+- исправлена Python 2 форма CIX signature: вместо `TMPL_block u'card'` генерируется стабильное `TMPL_block 'card'`;
+- smoke-test переведён с grep сериализованного XML на структурные проверки ElementTree, независимые от порядка XML-атрибутов;
+- добавлен bootstrap `codeintel_ctpp_cile_bootstrap.py`, который загружает CILE scanner, пока активен extension import hook Komodo;
 - добавлены CILE fixture и smoke-test через `mozpython`.
 
 ### Документация
