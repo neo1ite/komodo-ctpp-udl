@@ -4,10 +4,9 @@
 """CILE scanner для CTPP / CT++ 2.8.
 
 Основная среда выполнения — встроенный Python 2.7 Komodo IDE 9.3.2.
-Код намеренно остаётся совместимым и с Python 3, чтобы standalone smoke-test
-можно было запускать вне Komodo.
+Код намеренно остаётся совместимым и с Python 3 для standalone smoke-test.
 
-На этапе CodeIntel 2.2 scanner индексирует структурные сущности:
+На этапе CodeIntel 2.2 scanner индексирует:
 
 * определения ``TMPL_block`` и их ``args(...)``;
 * ссылки ``TMPL_call``;
@@ -15,13 +14,6 @@
 
 Go to Definition здесь намеренно не реализуется: это задача 2.3.
 Runtime-переменные и ``TMPL_foreach`` locals относятся к 2.4.
-
-Standalone запуск:
-
-    ~/Komodo-IDE-9/lib/mozilla/mozpython \
-        pylib/cile_ctpp.py tests/cile-basic.ctpp
-
-Внутри Komodo используется ``scan_buf()`` и ``ciElementTree``.
 """
 
 from __future__ import print_function
@@ -95,11 +87,22 @@ def _line_from_offset(text, offset):
     return text.count("\n", 0, offset) + 1
 
 
+def _quote_signature_value(value):
+    """Стабильно заключить значение в single quotes для CIX signature.
+
+    Нельзя использовать ``%r``: Python 2 сериализует unicode как ``u'card'``,
+    из-за чего один и тот же CTPP-файл получает разные signature в Py2/Py3.
+    """
+    value = _as_text(value)
+    value = value.replace(u"\\", u"\\\\").replace(u"'", u"\\'")
+    return u"'%s'" % value
+
+
 def _find_tag_end(text, pos):
     """Найти закрывающий ``>`` CTPP-тега.
 
     ``>`` внутри строк, ``()``, ``[]`` и ``{}`` является частью expression и
-    не завершает тег. Это соответствует lexer-поведению CodeIntel 2.1.
+    не завершает тег.
     """
     quote = None
     escaped = False
@@ -193,7 +196,7 @@ def _read_quoted_head(text):
         elif ch == "\\":
             escaped = True
         elif ch == quote:
-            return "".join(out), text[pos + 1:]
+            return u"".join(out), text[pos + 1:]
         else:
             out.append(ch)
         pos += 1
@@ -280,8 +283,10 @@ def _extract_args(text, identifiers_only=False):
     if close_pos is None:
         return []
 
-    values = [item for item in _split_top_level_commas(
-        text[open_pos + 1:close_pos]) if item]
+    values = [
+        item for item in _split_top_level_commas(text[open_pos + 1:close_pos])
+        if item
+    ]
 
     if identifiers_only:
         return [item for item in values if _IDENTIFIER_RE.match(item)]
@@ -396,8 +401,8 @@ def _prepare_tree(path, mtime, lang, tree=None):
 
 def _add_reference(blob, kind, name, line, raw, dynamic=False):
     # CIX не имеет отдельного reference element. Используем скрытую fabricated
-    # variable без нестандартного ilk: так generic Citadel/Code Browser не
-    # обязаны понимать новый ilk, а 2.3 сможет распознать ссылку по attributes.
+    # variable без нестандартного ilk: generic Citadel/Code Browser не обязаны
+    # понимать новый ilk, а 2.3 сможет распознать ссылку по attributes.
     attributes = [
         "__hidden__",
         "__fabricated__",
@@ -447,9 +452,10 @@ def _scan_symbols(text, blob):
             if parsed is None:
                 continue
             block_name, args = parsed
-            signature = "TMPL_block %r" % block_name
+
+            signature = u"TMPL_block %s" % _quote_signature_value(block_name)
             if args:
-                signature += " args(%s)" % ", ".join(args)
+                signature += u" args(%s)" % u", ".join(args)
 
             scope = ET.SubElement(
                 blob,
@@ -470,13 +476,24 @@ def _scan_symbols(text, blob):
                 continue
             target, dynamic, unused_args = parsed
             _add_reference(
-                blob, "call", target, tag["line"], tag["raw"], dynamic=dynamic)
+                blob,
+                "call",
+                target,
+                tag["line"],
+                tag["raw"],
+                dynamic=dynamic,
+            )
 
         elif name == "include":
             filename = _parse_include(tag)
             if filename is not None:
                 _add_reference(
-                    blob, "include", filename, tag["line"], tag["raw"])
+                    blob,
+                    "include",
+                    filename,
+                    tag["line"],
+                    tag["raw"],
+                )
 
     # Во время редактирования незакрытый блок индексируется до EOF.
     for scope in block_stack:
