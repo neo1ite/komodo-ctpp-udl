@@ -36,7 +36,7 @@ reject() {
 
 require '<scope ilk="blob" lang="CTPP" name="cile-basic.ctpp"'
 require '<scope ilk="function" name="card"'
-require 'signature="TMPL_block &apos;card&apos; args(title, body)"'
+require "signature=\"TMPL_block 'card' args(title, body)\""
 require '<variable ilk="argument" name="title"'
 require '<variable ilk="argument" name="body"'
 require '__ctpp_include__'
