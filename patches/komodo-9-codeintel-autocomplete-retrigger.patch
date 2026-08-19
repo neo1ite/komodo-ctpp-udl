@@ -1,0 +1,12 @@
+diff --git a/content/codeintel/codeintel.js b/content/codeintel/codeintel.js
+--- a/content/codeintel/codeintel.js
++++ b/content/codeintel/codeintel.js
+@@
+-        if (view.scintilla.autocomplete.active) {
+-            // No need to trigger if it's already open (bug 100035)
+-            return;
+-        }
++        // CTPP PATCH: allow CodeIntel retrigger while autocomplete is active.
+ 
+         var ciBuf = this._codeintelSvc.buf_from_koIDocument(view.koDoc);
+         this.linkCurrentProjectWithBuffer(ciBuf);

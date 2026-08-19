@@ -1,0 +1,22 @@
+family markup
+
+# <script ...> разбирается html2js.udl собственными состояниями атрибутов,
+# поэтому обычные IN_M_STAG_ATTR_* сюда не попадают.
+# Поддерживаем и whitespace-control форму <-TMPL_....
+state IN_H2CSL_STAG_ATTR_DSTRING:
+  /<\/?-?(?i:TMPL_)/ : \
+    paint(upto, M_STRING), \
+    paint(include, TPL_OPERATOR), \
+    spush_check(IN_H2CSL_STAG_ATTR_DSTRING), => IN_TPL_TAGNAME
+
+state IN_H2CSL_STAG_ATTR_SSTRING:
+  /<\/?-?(?i:TMPL_)/ : \
+    paint(upto, M_STRING), \
+    paint(include, TPL_OPERATOR), \
+    spush_check(IN_H2CSL_STAG_ATTR_SSTRING), => IN_TPL_TAGNAME
+
+state IN_H2CSL_STAG_ATTR_USTRING:
+  /<\/?-?(?i:TMPL_)/ : \
+    paint(upto, M_STRING), \
+    paint(include, TPL_OPERATOR), \
+    spush_check(IN_H2CSL_STAG_ATTR_USTRING), => IN_TPL_TAGNAME
