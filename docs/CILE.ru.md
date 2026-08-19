@@ -39,6 +39,41 @@ Python 3 можно использовать только как дополни�
 
 Есть и третья особенность именно Komodo CodeIntel: extension import hook активен только во время загрузки `codeintel_*.py`. Файл `cile_ctpp.py` по своему имени автоматически не загружается. Поэтому `pylib/codeintel_ctpp_cile_bootstrap.py` импортирует `codeintel2.cile_ctpp`, пока extension hook ещё активен; после этого CILE driver получает модуль из уже загруженного `codeintel2`.
 
+### Ограничение standalone SDK helper
+
+На проверяемой Linux-сборке Komodo 9 команда SDK
+
+```bash
+$KOMODO_HOME/lib/mozilla/mozpython \
+    $KOMODO_HOME/lib/sdk/bin/codeintel scan ...
+```
+
+падает ещё до запуска CodeIntel с ошибкой бинарного `ciElementTree.so`:
+
+```text
+undefined symbol: PyUnicodeUCS2_Decode
+```
+
+Это отдельная проблема standalone SDK/runtime и не является ошибкой CTPP scanner. Обычный `cile_ctpp.py` раньше скрывал её fallback-ом на stdlib `ElementTree`.
+
+Для проверки настоящей цепочки `Manager -> UDLBuffer -> CTPPCILEDriver` добавлен отдельный тест:
+
+```bash
+./tests/cile-mixed-smoke.sh
+```
+
+Он:
+
+- запускается встроенным `mozpython` Python 2.7;
+- выставляет `CODEINTEL_NO_PYXPCOM=1`;
+- заранее подставляет stdlib `xml.etree.ElementTree` под модуль `ciElementTree`;
+- регистрирует `pylib/` через `Manager(extra_module_dirs=...)`;
+- добавляет `build/lexers` в standalone UDL lexer path;
+- запускает реальный `CTPPCILEDriver.scan_purelang()`;
+- проверяет наличие blobs `CTPP`, `JavaScript`, `CSS`.
+
+Так мы тестируем именно архитектуру mixed CILE, не завися от сломанного SDK bootstrap XPCOM/`ciElementTree.so`.
+
 ## CIX-модель 2.2
 
 ### `TMPL_block`
@@ -192,13 +227,19 @@ tests/cile-basic.ctpp
 - `TMPL_comment` с ложными сущностями, которые не должны попасть в индекс;
 - второй block с expression `(x > 1 && y != 0)`.
 
-## Обязательный smoke-test через Python 2.7 Komodo
+## Обязательные smoke-tests
+
+Базовый scanner под Python 2.7 Komodo:
 
 ```bash
 ./tests/cile-smoke.sh
 ```
 
-Shell wrapper запускает структурный `tests/cile-smoke.py` именно через Komodo `mozpython`.
+Mixed driver pipeline:
+
+```bash
+./tests/cile-mixed-smoke.sh
+```
 
 Прямой вывод scanner:
 
@@ -209,13 +250,7 @@ KOMODO_HOME="${KOMODO_HOME:-$HOME/Komodo-IDE-9}"
     pylib/cile_ctpp.py tests/cile-basic.ctpp
 ```
 
-Важно: успешный
-
-```bash
-python3 pylib/cile_ctpp.py tests/cile-basic.ctpp
-```
-
-не считается достаточной проверкой совместимости с Komodo.
+Успешный `python3 ...` остаётся только дополнительной проверкой.
 
 ## Проверка интеграции 2.2
 
