@@ -15,7 +15,6 @@
 - подсветка Underscore templates в HTML- и JavaScript-контекстах;
 - HTML5-линтинг с предварительной обработкой CTPP;
 - **Code Intelligence 2.0:** регистрация CTPP в CodeIntel и автодополнение тегов `TMPL_*`;
-- автоматическая передача уже открытого HTML5 autocomplete CTPP CodeIntel после распознавания `<TMPL_`/`</TMPL_`;
 - штатный HTML5/CSS/JavaScript CodeIntel внутри смешанного CTPP-документа;
 - шаблоны новых CTPP-файлов;
 - отдельная иконка CTPP для файлов и элементов интерфейса языка;
@@ -39,7 +38,7 @@ rm -rf ~/.komodoide/9.3/XRE/startupCache
 
 Komodo 9 поставляется со своим Python 2.7 — `mozpython`. На современных Linux-системах SDK следует запускать через runtime Komodo.
 
-**Важно:** используйте `--unjarred`. Расширение использует chrome URL для `content/` и `skin/`; в версии 2.0 из `content/` также загружается небольшой UI-мост, который закрывает уже открытый HTML5 autocomplete и повторно запускает CodeIntel как CTPP после распознавания префикса `TMPL_`.
+**Важно:** используйте `--unjarred`. Расширение использует chrome URL для `content/`, `skin/` и `locale/`.
 
 ```bash
 KOMODO_HOME="${KOMODO_HOME:-$HOME/Komodo-IDE-9}"
@@ -66,10 +65,38 @@ ctpp_language-2.0-ko.xpi
 - явное дополнение по `Ctrl+J` для частично введённого `TMPL_*`;
 - дополнение контейнерных тегов в закрывающей форме `</TMPL_...>`;
 - штатное HTML5/XML-дополнение в HTML-частях шаблона;
-- делегирование JavaScript и CSS штатным CodeIntel/CILE-драйверам Komodo;
-- передача активного HTML5 popup в CTPP popup, когда ввод превращается в незавершённый CTPP-тег.
+- делегирование JavaScript и CSS штатным CodeIntel/CILE-драйверам Komodo.
 
 Дополнение выражений внутри CTPP сознательно оставлено на версию 2.1.
+
+### Патч повторного запуска autocomplete в Komodo 9
+
+В Komodo 9 функция `ko.codeintel.trigger()` немедленно завершает работу, если popup автодополнения уже открыт. HTML5 открывает список тегов сразу после `<`, поэтому при дальнейшем вводе `<TMPL_` ядро Komodo не вычисляет новый CTPP trigger, хотя LexUDL уже переключился из семейства markup (`M`) в template (`TPL`).
+
+В репозитории есть идемпотентный менеджер этого патча:
+
+```bash
+# Перед install/uninstall Komodo должен быть полностью закрыт.
+sh ./patch-komodo-codeintel.sh status
+sh ./patch-komodo-codeintel.sh install
+sh ./patch-komodo-codeintel.sh status
+
+# Откатить только этот патч:
+sh ./patch-komodo-codeintel.sh uninstall
+```
+
+Скрипт:
+
+- по умолчанию работает с `$HOME/Komodo-IDE-9`, путь можно изменить через `KOMODO_HOME`;
+- изменяет только `content/codeintel/codeintel.js` внутри `lib/mozilla/chrome/komodo.jar`;
+- отказывается применять патч к неизвестной/несовместимой реализации CodeIntel;
+- сохраняет оригинальный JavaScript отдельно в `lib/mozilla/chrome/.ctpp-codeintel-patch/`;
+- не перезаписывает этот оригинальный backup при повторных установках;
+- обновляет JAR через временную копию и проверяет архив перед заменой;
+- идемпотентен и для `install`, и для `uninstall`;
+- после изменения состояния удаляет startup cache Komodo.
+
+Для ручной проверки изменение также сохранено как обычный unified diff: `patches/komodo-9-codeintel-autocomplete-retrigger.patch`.
 
 ## Иконка языка
 
@@ -82,7 +109,8 @@ ctpp_language-2.0-ko.xpi
 - `udl/` — UDL-описания и переходы между языковыми семействами;
 - `components/` — регистрация языка и linter-компоненты;
 - `pylib/` — Code Intelligence, LangInfo и будущая CILE-интеграция;
-- `content/` — интеграция с UI Komodo, включая мост автодополнения CTPP;
+- `patches/` — эталонные патчи самого Komodo 9;
+- `patch-komodo-codeintel.sh` — идемпотентный менеджер патча CodeIntel Komodo 9;
 - `templates/` — шаблоны новых файлов;
 - `skin/` — ресурсы интерфейса, включая `languages.css` и `ctpp.svg`.
 
@@ -106,6 +134,12 @@ ctpp_language-2.0-ko.xpi
 После этого запустите Komodo снова.
 
 Если после установки 2.0 остаётся старое состояние CodeIntel, убедитесь, что завершены все процессы Komodo: CodeIntel работает в отдельном backend-процессе и должен заново загрузить `pylib/` расширения.
+
+Состояние патча ядра Komodo проверяется отдельно:
+
+```bash
+sh ./patch-komodo-codeintel.sh status
+```
 
 ## Лицензия
 
