@@ -15,6 +15,7 @@
 - подсветка Underscore templates в HTML- и JavaScript-контекстах;
 - HTML5-линтинг с предварительной обработкой CTPP;
 - **Code Intelligence 2.0:** регистрация CTPP в CodeIntel и автодополнение тегов `TMPL_*`;
+- автоматическая передача уже открытого HTML5 autocomplete CTPP CodeIntel после распознавания `<TMPL_`/`</TMPL_`;
 - штатный HTML5/CSS/JavaScript CodeIntel внутри смешанного CTPP-документа;
 - шаблоны новых CTPP-файлов;
 - отдельная иконка CTPP для файлов и элементов интерфейса языка;
@@ -38,7 +39,7 @@ rm -rf ~/.komodoide/9.3/XRE/startupCache
 
 Komodo 9 поставляется со своим Python 2.7 — `mozpython`. На современных Linux-системах SDK следует запускать через runtime Komodo.
 
-**Важно:** используйте `--unjarred`. По умолчанию SDK Komodo упаковывает `content/`, `skin/` и `locale/` внутрь `ctpp_language.jar`, а `chrome.manifest` данного расширения обращается к `chrome://ctpp/skin/languages.css` и `ctpp.svg` как к обычным chrome-каталогам. Поэтому для иконки языка требуется unjarred-сборка.
+**Важно:** используйте `--unjarred`. Расширение использует chrome URL для `content/` и `skin/`; в версии 2.0 из `content/` также загружается небольшой UI-мост, который закрывает уже открытый HTML5 autocomplete и повторно запускает CodeIntel как CTPP после распознавания префикса `TMPL_`.
 
 ```bash
 KOMODO_HOME="${KOMODO_HOME:-$HOME/Komodo-IDE-9}"
@@ -59,13 +60,14 @@ ctpp_language-2.0-ko.xpi
 
 Версия 2.0 реализует первый рабочий слой CodeIntel для CTPP:
 
-- отдельный `LangInfo` для `CTPP`, устраняющий предупреждение `Unable to retrieve langinfo for 'CTPP'`;
+- отдельный `LangInfo` для `CTPP`;
 - использование семейства `TPL_*` вместо оставшегося от генератора заглушечного `SSL_*`;
 - автоматическое дополнение тегов после `<TMPL_` и после двух введённых символов имени;
 - явное дополнение по `Ctrl+J` для частично введённого `TMPL_*`;
 - дополнение контейнерных тегов в закрывающей форме `</TMPL_...>`;
 - штатное HTML5/XML-дополнение в HTML-частях шаблона;
-- делегирование JavaScript и CSS штатным CodeIntel/CILE-драйверам Komodo.
+- делегирование JavaScript и CSS штатным CodeIntel/CILE-драйверам Komodo;
+- передача активного HTML5 popup в CTPP popup, когда ввод превращается в незавершённый CTPP-тег.
 
 Дополнение выражений внутри CTPP сознательно оставлено на версию 2.1.
 
@@ -73,24 +75,16 @@ ctpp_language-2.0-ko.xpi
 
 Иконки файлов/вкладок CTPP разрешаются через файловый механизм Komodo. Список языков использует другой путь интерфейса: Komodo создаёт пункты с классом `languageicon` и атрибутом `language="CTPP"`.
 
-Расширение подключает CTPP stylesheet непосредственно к основному chrome Komodo:
-
-```text
-style chrome://komodo/content/komodo.xul chrome://ctpp/skin/languages.css
-```
-
-`skin/languages.css` переопределяет изображение для `language="CTPP"`, а SVG расположен в `skin/ctpp.svg`.
-
-XPI должен собираться через `koext build --unjarred`; иначе SDK помещает skin в JAR, и chrome URL выше не разрешается в упакованный stylesheet ожидаемым способом.
+Расширение подключает CTPP stylesheet непосредственно к основному chrome Komodo.
 
 ## Структура проекта
 
 - `udl/` — UDL-описания и переходы между языковыми семействами;
 - `components/` — регистрация языка и linter-компоненты;
 - `pylib/` — Code Intelligence, LangInfo и будущая CILE-интеграция;
+- `content/` — интеграция с UI Komodo, включая мост автодополнения CTPP;
 - `templates/` — шаблоны новых файлов;
-- `skin/` — ресурсы интерфейса, включая `languages.css` и `ctpp.svg`;
-- `content/` — прочие chrome-ресурсы при необходимости.
+- `skin/` — ресурсы интерфейса, включая `languages.css` и `ctpp.svg`.
 
 ## Совместимость
 
