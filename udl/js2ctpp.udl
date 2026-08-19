@@ -1,14 +1,15 @@
 family csl
 
-# CTPP внутри JavaScript-строк.
+# CTPP внутри JavaScript-строк. CT++ допускает как <TMPL_..., так и
+# whitespace-control форму <-TMPL_....
 state IN_CSL_SSTRING:
-  /<\/?(?i:TMPL_)/ : \
+  /<\/?-?(?i:TMPL_)/ : \
     paint(upto, CSL_STRING), \
     paint(include, TPL_OPERATOR), \
     spush_check(IN_CSL_SSTRING), => IN_TPL_TAGNAME
 
 state IN_CSL_DSTRING:
-  /<\/?(?i:TMPL_)/ : \
+  /<\/?-?(?i:TMPL_)/ : \
     paint(upto, CSL_STRING), \
     paint(include, TPL_OPERATOR), \
     spush_check(IN_CSL_DSTRING), => IN_TPL_TAGNAME
