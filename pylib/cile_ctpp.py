@@ -1,102 +1,505 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
-"""A Code Intelligence Language Engine for the CTPP language.
+"""CILE scanner для CTPP / CT++ 2.8.
 
-A "Language Engine" is responsible for scanning content of
-its language and generating CIX output that represents an outline of
-the code elements in that content. See the CIX (Code Intelligence XML)
-format:
-    http://community.activestate.com/faq/codeintel-cix-schema
-    
-Module Usage:
-    from cile_ctpp import scan
-    mtime = os.stat("bar.ctpp")[stat.ST_MTIME]
-    content = open("bar.ctpp", "r").read()
-    scan(content, "bar.ctpp", mtime=mtime)
+На этапе CodeIntel 2.2 scanner индексирует структурные сущности, которые
+нужны следующим слоям CodeIntel:
+
+* определения ``TMPL_block`` и их ``args(...)``;
+* ссылки ``TMPL_call``;
+* ссылки ``TMPL_include``.
+
+Go to Definition здесь намеренно не реализуется: это задача 2.3.
+Runtime-переменные и ``TMPL_foreach`` locals относятся к 2.4.
+
+Модуль можно запускать отдельно обычным Python для просмотра CIX:
+
+    python pylib/cile_ctpp.py tests/cile-basic.ctpp
+
+В Komodo используется ``scan_buf()`` и ``ciElementTree``.
 """
 
-__version__ = "1.0.0"
+from __future__ import print_function
 
+import io
 import os
+import re
 import sys
 import time
-import optparse
-import logging
-import pprint
-import glob
 
-# Note: c*i*ElementTree is the codeintel system's slightly modified
-# cElementTree. Use it exactly as you would the normal cElementTree API:
-#   http://effbot.org/zone/element-index.htm
-import ciElementTree as ET
+try:
+    import ciElementTree as ET
+except ImportError:
+    # Удобно для автономного smoke-test вне Komodo.
+    from xml.etree import ElementTree as ET
 
-from codeintel2.common import CILEError
+try:
+    from codeintel2.common import CILEError
+except ImportError:
+    class CILEError(Exception):
+        pass
 
 
+__version__ = "2.2.0"
 
-#---- exceptions
 
 class CTPPCILEError(CILEError):
     pass
 
 
-
-#---- global data
-
-log = logging.getLogger("cile.ctpp")
-#log.setLevel(logging.DEBUG)
-
+try:
+    text_type = unicode
+except NameError:
+    text_type = str
 
 
-#---- public module interface
+_TAG_START_RE = re.compile(
+    r"<(?P<closing>/)?(?P<leading_dash>-)?TMPL_"
+    r"(?P<name>[A-Za-z_][A-Za-z0-9_]*)\b",
+    re.I,
+)
+_ARGS_RE = re.compile(r"\bargs\s*\(", re.I)
+_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_DYNAMIC_TARGET_RE = re.compile(
+    r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*"
+)
 
-def scan_buf(buf, mtime=None, lang="CTPP"):
-    """Scan the given CTPPBuffer return an ElementTree (conforming
-    to the CIX schema) giving a summary of its code elements.
-    
-    @param buf {CTPPBuffer} is the CTPP buffer to scan
-    @param mtime {int} is a modified time for the file (in seconds since
-        the "epoch"). If it is not specified the _current_ time is used.
-        Note that the default is not to stat() the file and use that
-        because the given content might not reflect the saved file state.
+
+def _as_text(value):
+    if isinstance(value, text_type):
+        return value
+    if isinstance(value, bytes):
+        return value.decode("utf-8", "replace")
+    return text_type(value)
+
+
+def _normalise_path(path):
+    path = path or "<Unsaved>/CTPP.ctpp"
+    if sys.platform.startswith("win"):
+        path = path.replace("\\", "/")
+    return path
+
+
+def _line_from_offset(text, offset):
+    """Вернуть 1-based номер строки без зависимости от byte/char offsets."""
+    return text.count("\n", 0, offset) + 1
+
+
+def _find_tag_end(text, pos):
+    """Найти закрывающий ``>`` CTPP-тега.
+
+    ``>`` внутри строк, ``()``, ``[]`` и ``{}`` является частью expression и
+    не завершает тег. Это соответствует lexer-поведению, реализованному в 2.1.
     """
-    # Dev Notes:
-    # - This stub implementation of the CTPP CILE return an "empty"
-    #   summary for the given content, i.e. CIX content that says "there
-    #   are no code elements in this CTPP content".
-    # - Use the following command (in the extension source dir) to
-    #   debug/test your scanner:
-    #       codeintel scan -p -l CTPP <example-CTPP-file>
-    #   "codeintel" is a script available in the Komodo SDK.
-    log.info("scan '%s'", buf.path)
+    quote = None
+    escaped = False
+    paren = 0
+    bracket = 0
+    brace = 0
+
+    while pos < len(text):
+        ch = text[pos]
+
+        if quote is not None:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == quote:
+                quote = None
+            pos += 1
+            continue
+
+        if ch in ("'", '"'):
+            quote = ch
+        elif ch == "(":
+            paren += 1
+        elif ch == ")":
+            if paren:
+                paren -= 1
+        elif ch == "[":
+            bracket += 1
+        elif ch == "]":
+            if bracket:
+                bracket -= 1
+        elif ch == "{":
+            brace += 1
+        elif ch == "}":
+            if brace:
+                brace -= 1
+        elif ch == ">" and not (paren or bracket or brace):
+            return pos
+
+        pos += 1
+
+    return None
+
+
+def _iter_tags(text):
+    pos = 0
+    while True:
+        match = _TAG_START_RE.search(text, pos)
+        if match is None:
+            return
+
+        end = _find_tag_end(text, match.end())
+        if end is None:
+            # Незавершённый тег во время редактирования не должен ломать CILE.
+            return
+
+        body = text[match.end():end].rstrip()
+        if body.endswith("-"):
+            # trailing whitespace-control: <TMPL_var foo->
+            body = body[:-1].rstrip()
+
+        yield {
+            "start": match.start(),
+            "end": end + 1,
+            "line": _line_from_offset(text, match.start()),
+            "closing": bool(match.group("closing")),
+            "name": match.group("name").lower(),
+            "body": body,
+            "raw": text[match.start():end + 1],
+        }
+        pos = end + 1
+
+
+def _read_quoted_head(text):
+    """Прочитать первый quoted value; вернуть ``(value, rest)`` или None."""
+    text = text.lstrip()
+    if not text or text[0] not in ("'", '"'):
+        return None
+
+    quote = text[0]
+    out = []
+    escaped = False
+    pos = 1
+
+    while pos < len(text):
+        ch = text[pos]
+        if escaped:
+            out.append(ch)
+            escaped = False
+        elif ch == "\\":
+            escaped = True
+        elif ch == quote:
+            return "".join(out), text[pos + 1:]
+        else:
+            out.append(ch)
+        pos += 1
+
+    return None
+
+
+def _find_matching_paren(text, open_pos):
+    depth = 1
+    quote = None
+    escaped = False
+    pos = open_pos + 1
+
+    while pos < len(text):
+        ch = text[pos]
+        if quote is not None:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == quote:
+                quote = None
+        elif ch in ("'", '"'):
+            quote = ch
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                return pos
+        pos += 1
+
+    return None
+
+
+def _split_top_level_commas(text):
+    parts = []
+    start = 0
+    paren = bracket = brace = 0
+    quote = None
+    escaped = False
+
+    for pos, ch in enumerate(text):
+        if quote is not None:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == quote:
+                quote = None
+            continue
+
+        if ch in ("'", '"'):
+            quote = ch
+        elif ch == "(":
+            paren += 1
+        elif ch == ")" and paren:
+            paren -= 1
+        elif ch == "[":
+            bracket += 1
+        elif ch == "]" and bracket:
+            bracket -= 1
+        elif ch == "{":
+            brace += 1
+        elif ch == "}" and brace:
+            brace -= 1
+        elif ch == "," and not (paren or bracket or brace):
+            parts.append(text[start:pos].strip())
+            start = pos + 1
+
+    parts.append(text[start:].strip())
+    return parts
+
+
+def _extract_args(text, identifiers_only=False):
+    match = _ARGS_RE.search(text)
+    if match is None:
+        return []
+
+    open_pos = text.find("(", match.start())
+    close_pos = _find_matching_paren(text, open_pos)
+    if close_pos is None:
+        return []
+
+    values = [item for item in _split_top_level_commas(
+        text[open_pos + 1:close_pos]) if item]
+
+    if identifiers_only:
+        return [item for item in values if _IDENTIFIER_RE.match(item)]
+    return values
+
+
+def _parse_block(tag):
+    parsed = _read_quoted_head(tag["body"])
+    if parsed is None:
+        # Каноническая документация определяет block name quoted-строкой.
+        return None
+
+    name, rest = parsed
+    if not name:
+        return None
+    args = _extract_args(rest, identifiers_only=True)
+    return name, args
+
+
+def _parse_call(tag):
+    body = tag["body"].strip()
+    parsed = _read_quoted_head(body)
+    if parsed is not None:
+        name, rest = parsed
+        return name, False, _extract_args(rest)
+
+    # Канонический CT++ допускает <TMPL_call some_var>.
+    match = _DYNAMIC_TARGET_RE.match(body)
+    if match is None:
+        return None
+    target = match.group(0)
+    rest = body[match.end():]
+    return target, True, _extract_args(rest)
+
+
+def _parse_include(tag):
+    # CT++ 2.8: include имеет ровно один quoted filename и не принимает var.
+    parsed = _read_quoted_head(tag["body"])
+    if parsed is None:
+        return None
+    filename, rest = parsed
+    if not filename or rest.strip():
+        return None
+    return filename
+
+
+def _local_name(tag):
+    if "}" in tag:
+        return tag.rsplit("}", 1)[-1]
+    return tag
+
+
+def _find_file_element(tree):
+    for child in list(tree):
+        if _local_name(child.tag) == "file":
+            return child
+    return None
+
+
+def _remove_existing_ctpp_blob(file_elem, lang):
+    for child in list(file_elem):
+        if (_local_name(child.tag) == "scope"
+                and child.get("ilk") == "blob"
+                and child.get("lang") == lang):
+            file_elem.remove(child)
+
+
+def _prepare_tree(path, mtime, lang, tree=None):
+    if tree is None:
+        tree = ET.Element(
+            "codeintel", version="2.0", xmlns="urn:activestate:cix:2.0")
+        file_elem = ET.SubElement(
+            tree,
+            "file",
+            lang=lang,
+            path=path,
+            mtime=str(mtime),
+        )
+    else:
+        file_elem = _find_file_element(tree)
+        if file_elem is None:
+            file_elem = ET.SubElement(
+                tree,
+                "file",
+                lang=lang,
+                path=path,
+                mtime=str(mtime),
+            )
+        else:
+            if not file_elem.get("path"):
+                file_elem.set("path", path)
+            file_elem.set("mtime", str(mtime))
+
+    _remove_existing_ctpp_blob(file_elem, lang)
+    blob = ET.SubElement(
+        file_elem,
+        "scope",
+        ilk="blob",
+        lang=lang,
+        name=os.path.basename(path),
+        src=path,
+    )
+    return tree, file_elem, blob
+
+
+def _add_reference(blob, kind, name, line, raw, dynamic=False):
+    attributes = ["__hidden__", "__ctpp_reference__", "__ctpp_%s__" % kind]
+    if dynamic:
+        attributes.append("__dynamic__")
+
+    ET.SubElement(
+        blob,
+        "variable",
+        name=name,
+        ilk="reference",
+        line=str(line),
+        attributes=" ".join(attributes),
+        doc=raw.strip(),
+    )
+
+
+def _scan_symbols(text, blob):
+    block_stack = []
+    comment_depth = 0
+    last_line = text.count("\n") + 1
+
+    for tag in _iter_tags(text):
+        name = tag["name"]
+
+        # TMPL_comment suppresses semantics of everything inside it.
+        if name == "comment":
+            if tag["closing"]:
+                if comment_depth:
+                    comment_depth -= 1
+            else:
+                comment_depth += 1
+            continue
+        if comment_depth:
+            continue
+
+        if tag["closing"]:
+            if name == "block" and block_stack:
+                scope = block_stack.pop()
+                scope.set("lineend", str(tag["line"]))
+            continue
+
+        if name == "block":
+            parsed = _parse_block(tag)
+            if parsed is None:
+                continue
+            block_name, args = parsed
+            signature = "TMPL_block %r" % block_name
+            if args:
+                signature += " args(%s)" % ", ".join(args)
+
+            scope = ET.SubElement(
+                blob,
+                "scope",
+                ilk="function",
+                name=block_name,
+                line=str(tag["line"]),
+                signature=signature,
+                attributes="__ctpp_block__",
+            )
+            for arg in args:
+                ET.SubElement(scope, "variable", ilk="argument", name=arg)
+            block_stack.append(scope)
+
+        elif name == "call":
+            parsed = _parse_call(tag)
+            if parsed is None:
+                continue
+            target, dynamic, unused_args = parsed
+            _add_reference(
+                blob, "call", target, tag["line"], tag["raw"], dynamic=dynamic)
+
+        elif name == "include":
+            filename = _parse_include(tag)
+            if filename is not None:
+                _add_reference(
+                    blob, "include", filename, tag["line"], tag["raw"])
+
+    # Во время редактирования незакрытый блок индексируется до EOF.
+    for scope in block_stack:
+        scope.set("lineend", str(last_line))
+        old = scope.get("attributes", "")
+        scope.set("attributes", (old + " __ctpp_unclosed__").strip())
+
+
+def scan_text(text, path, mtime=None, lang="CTPP", tree=None):
+    """Просканировать raw CTPP text и вернуть CIX tree.
+
+    Если ``tree`` передан, CTPP blob добавляется в уже построенный multi-lang
+    CIX. Это позволяет сохранить JavaScript/CSS CILE штатного UDL driver.
+    """
+    text = _as_text(text)
+    path = _normalise_path(path)
     if mtime is None:
         mtime = int(time.time())
 
-    # The 'path' attribute must use normalized dir separators.
-    if sys.platform.startswith("win"):
-        path = buf.path.replace('\\', '/')
-    else:
-        path = buf.path
-        
-    tree = ET.Element("codeintel", version="2.0",
-                      xmlns="urn:activestate:cix:2.0")
-    file = ET.SubElement(tree, "file", lang=lang, mtime=str(mtime))
-    blob = ET.SubElement(file, "scope", ilk="blob", lang=lang,
-                         name=os.path.basename(path))
-
-    # Dev Note:
-    # This is where you process the CTPP content and add CIX elements
-    # to 'blob' as per the CIX schema (cix-2.0.rng). Use the
-    # "buf.accessor" API (see class Accessor in codeintel2.accessor) to
-    # analyze. For example:
-    # - A token stream of the content is available via:
-    #       buf.accessor.gen_tokens()
-    #   Use the "codeintel html -b <example-CTPP-file>" command as
-    #   a debugging tool.
-    # - "buf.accessor.text" is the whole content of the file. If you have
-    #   a separate tokenizer/scanner tool for CTPP content, you may
-    #   want to use it.
-
+    tree, unused_file, blob = _prepare_tree(path, mtime, lang, tree=tree)
+    _scan_symbols(text, blob)
     return tree
 
 
+def scan_buf(buf, mtime=None, lang="CTPP", tree=None):
+    """CILE entry point для ``CTPPBuffer`` Komodo."""
+    path = _normalise_path(getattr(buf, "path", None))
+    text = buf.accessor.text
+    return scan_text(text, path, mtime=mtime, lang=lang, tree=tree)
+
+
+def _main(argv):
+    if len(argv) != 2:
+        sys.stderr.write("usage: %s FILE.ctpp\n" % argv[0])
+        return 2
+
+    path = argv[1]
+    with io.open(path, "r", encoding="utf-8", errors="replace") as stream:
+        text = stream.read()
+    tree = scan_text(text, path)
+
+    data = ET.tostring(tree, encoding="utf-8")
+    if not isinstance(data, text_type):
+        data = data.decode("utf-8")
+    sys.stdout.write(data)
+    sys.stdout.write("\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(_main(sys.argv))
