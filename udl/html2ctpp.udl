@@ -2,31 +2,32 @@ family markup
 
 # Переключаемся в TPL сразу после префикса TMPL_. Это позволяет CodeIntel
 # работать ещё до того, как имя тега введено целиком.
+# CT++ также допускает <-TMPL_... как whitespace-control форму.
 state IN_M_DEFAULT:
-  /<\/?(?i:TMPL_)/ : \
+  /<\/?-?(?i:TMPL_)/ : \
     paint(upto, M_DEFAULT), \
     paint(include, TPL_OPERATOR), \
     spush_check(IN_M_DEFAULT), => IN_TPL_TAGNAME
 
-  /<!--\s*(?i:TMPL_(?:var|if|elsif|else|unless|loop|foreach|udf|include|comment|block|call))\b/ : \
+  /<!--\s*(?i:TMPL_(?:var|if|elsif|else|unless|foreach|include|comment|block|call|verbose|break))\b/ : \
     paint(upto, M_DEFAULT), \
     paint(include, TPL_COMMENT), \
     spush_check(IN_M_DEFAULT), => IN_TPL_CTPP_HTML_COMMENT
 
 state IN_M_STAG_ATTR_DSTRING:
-  /<\/?(?i:TMPL_)/ : \
+  /<\/?-?(?i:TMPL_)/ : \
     paint(upto, M_STRING), \
     paint(include, TPL_OPERATOR), \
     spush_check(IN_M_STAG_ATTR_DSTRING), => IN_TPL_TAGNAME
 
 state IN_M_STAG_ATTR_SSTRING:
-  /<\/?(?i:TMPL_)/ : \
+  /<\/?-?(?i:TMPL_)/ : \
     paint(upto, M_STRING), \
     paint(include, TPL_OPERATOR), \
     spush_check(IN_M_STAG_ATTR_SSTRING), => IN_TPL_TAGNAME
 
 state IN_M_STAG_ATTR_USTRING:
-  /<\/?(?i:TMPL_)/ : \
+  /<\/?-?(?i:TMPL_)/ : \
     paint(upto, M_STRING), \
     paint(include, TPL_OPERATOR), \
     spush_check(IN_M_STAG_ATTR_USTRING), => IN_TPL_TAGNAME
