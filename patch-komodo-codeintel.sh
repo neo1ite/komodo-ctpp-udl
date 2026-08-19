@@ -1,12 +1,11 @@
 #!/bin/sh
 set -eu
 
-# Идемпотентный установщик патча Komodo 9 CodeIntel.
+# Идемпотентный менеджер патча Komodo 9 CodeIntel.
 #
-# Патч удаляет преждевременный выход из ko.codeintel.trigger(), который не
-# позволяет пересчитать CodeIntel trigger при уже открытом autocomplete popup.
-# Это нужно смешанным UDL-языкам (в частности CTPP), чтобы открытый HTML5
-# completion мог смениться CTPP completion после переключения family M -> TPL.
+# Патч удаляет ранний выход из ko.codeintel.trigger(), который запрещает
+# пересчитать trigger, пока уже открыт autocomplete popup. Для смешанных
+# UDL-языков это мешает переключению HTML5 -> CTPP после <TMPL_.
 #
 # Использование:
 #   sh ./patch-komodo-codeintel.sh status
@@ -14,13 +13,10 @@ set -eu
 #   sh ./patch-komodo-codeintel.sh uninstall
 #
 # Переменные окружения:
-#   KOMODO_HOME      корень Komodo (по умолчанию $HOME/Komodo-IDE-9)
-#   KOMODO_JAR       путь к komodo.jar, если он нестандартный
-#   KOMODO_PROFILE   профиль Komodo (по умолчанию $HOME/.komodoide/9.3)
-#
-# Скрипт меняет только content/codeintel/codeintel.js внутри komodo.jar.
-# Оригинальный JS сохраняется отдельно и никогда не перезаписывается повторной
-# установкой патча.
+#   KOMODO_HOME                   корень Komodo
+#   KOMODO_JAR                    путь к komodo.jar
+#   KOMODO_PROFILE                профиль Komodo
+#   KOMODO_CTPP_PATCH_STATE_DIR   каталог состояния/backup
 
 PROG=${0##*/}
 ACTION=${1:-status}
@@ -63,7 +59,7 @@ usage() {
   uninstall  удалить патч; повторный запуск безопасен
   help       показать эту справку
 
-Переменные окружения:
+Текущие пути:
   KOMODO_HOME=$KOMODO_HOME
   KOMODO_JAR=$JAR
   KOMODO_PROFILE=$KOMODO_PROFILE
@@ -87,11 +83,13 @@ check_tools() {
     need_cmd perl
     need_cmd cmp
     need_cmd mktemp
+    need_cmd grep
 }
 
 check_jar() {
     [ -f "$JAR" ] || die "не найден komodo.jar: $JAR"
-    unzip -t "$JAR" >/dev/null 2>&1 || die "архив повреждён или не является ZIP/JAR: $JAR"
+    unzip -t "$JAR" >/dev/null 2>&1 \
+        || die "архив повреждён или не является ZIP/JAR: $JAR"
     unzip -Z1 "$JAR" 2>/dev/null | grep -Fx "$ENTRY" >/dev/null 2>&1 \
         || die "в $JAR отсутствует $ENTRY"
 }
@@ -113,8 +111,7 @@ require_stopped() {
 }
 
 make_tmp() {
-    # Создаём временный каталог рядом с JAR: финальный mv остаётся атомарным
-    # даже если /tmp находится на другом filesystem.
+    [ -n "$TMP_ROOT" ] && return 0
     TMP_ROOT=$(mktemp -d "${JAR%/*}/.ctpp-codeintel.XXXXXX") \
         || die "не удалось создать временный каталог рядом с $JAR"
 }
@@ -139,9 +136,9 @@ state_of_file() {
         return
     fi
 
-    # Совместимость с ручной версией патча, где блок был просто удалён без
-    # marker-комментария. Наличие последующего штатного guard подтверждает,
-    # что мы смотрим на ожидаемую реализацию trigger().
+    # Совместимость с ручным вариантом патча: guard уже удалён, но marker ещё
+    # не существовал. Такой файл считаем установленным, но автоматически
+    # удалить его без известного backup не пытаемся.
     if grep -F "$ANCHOR" "$file" >/dev/null 2>&1 \
        && grep -F "$SECONDARY_GUARD" "$file" >/dev/null 2>&1; then
         printf '%s\n' installed-unmarked
@@ -163,8 +160,9 @@ validate_original() {
 
 validate_patched() {
     file=$1
-    grep -F "$ORIGINAL_SENTINEL" "$file" >/dev/null 2>&1 \
-        && die "патч не применился: исходный guard всё ещё присутствует"
+    if grep -F "$ORIGINAL_SENTINEL" "$file" >/dev/null 2>&1; then
+        die "патч не применился: исходный guard всё ещё присутствует"
+    fi
     grep -F "$ANCHOR" "$file" >/dev/null 2>&1 \
         || die "после патча исчез контрольный фрагмент CodeIntel"
     grep -F "$SECONDARY_GUARD" "$file" >/dev/null 2>&1 \
@@ -174,8 +172,6 @@ validate_patched() {
 patch_file() {
     file=$1
 
-    # Меняем только один конкретный guard. Маркер нужен для надёжного status и
-    # хирургического uninstall без отката других возможных изменений codeintel.js.
     perl -0pi -e '
         $n = s{
             (^([ \t]*)if[ \t]*\([ \t]*view\.scintilla\.autocomplete\.active[ \t]*\)[ \t]*\{\r?\n)
@@ -184,14 +180,12 @@ patch_file() {
             ([ \t]*\}\r?\n)
         }{$2// CTPP PATCH: allow CodeIntel retrigger while autocomplete is active.\n}mx;
         END { exit 23 unless $n == 1; }
-    ' "$file" || die "ожидаемый guard найден, но не удалось однозначно заменить его"
+    ' "$file" || die "не удалось однозначно заменить ожидаемый guard"
 }
 
 unpatch_file() {
     file=$1
 
-    # Восстанавливаем только удалённый guard. Другие изменения codeintel.js не
-    # затрагиваются.
     perl -0pi -e '
         $n = s{
             ^([ \t]*)//[ \t]*CTPP[ \t]+PATCH:[ \t]+allow[ \t]+CodeIntel[ \t]+retrigger[ \t]+while[ \t]+autocomplete[ \t]+is[ \t]+active\.\r?\n
@@ -202,13 +196,13 @@ unpatch_file() {
             $1 . "}\n"
         }emx;
         END { exit 23 unless $n == 1; }
-    ' "$file" || die "не удалось однозначно восстановить guard по marker-комментарию"
+    ' "$file" || die "не удалось однозначно восстановить guard"
 }
 
 replace_entry_atomically() {
     file=$1
 
-    [ -n "$TMP_ROOT" ] || make_tmp
+    make_tmp
 
     newjar="$TMP_ROOT/komodo.jar.new"
     work="$TMP_ROOT/work"
@@ -219,10 +213,15 @@ replace_entry_atomically() {
     cp "$file" "$work/$ENTRY" \
         || die "не удалось подготовить новую запись $ENTRY"
 
+    # Не используем `zip -u`: при install -> uninstall в пределах одной секунды
+    # timestamp новой записи может оказаться не новее записи в JAR, и Info-ZIP
+    # возвращает "Nothing to do". Удаляем ровно одну запись и добавляем её снова.
+    zip -q -d "$newjar" "$ENTRY" \
+        || die "zip не смог удалить старую запись $ENTRY"
     (
         cd "$work"
-        zip -q -u "$newjar" "$ENTRY"
-    ) || die "zip не смог обновить $ENTRY"
+        zip -q "$newjar" "$ENTRY"
+    ) || die "zip не смог добавить новую запись $ENTRY"
 
     unzip -t "$newjar" >/dev/null 2>&1 \
         || die "проверка нового komodo.jar завершилась ошибкой"
@@ -333,7 +332,6 @@ do_install() {
 
     replace_entry_atomically "$patched"
 
-    # Повторно читаем уже установленный JAR, а не временный файл.
     verify="$TMP_ROOT/codeintel.js.verify"
     extract_entry "$verify"
     [ "$(state_of_file "$verify")" = installed ] \
@@ -370,9 +368,6 @@ do_uninstall() {
             ;;
     esac
 
-    # Backup используется как дополнительная гарантия того, что этот install
-    # действительно знаком скрипту. Сам файл целиком назад не копируем, чтобы
-    # не затереть другие изменения, внесённые после установки патча.
     [ -f "$ORIGINAL_JS" ] \
         || die "не найден backup $ORIGINAL_JS; безопасный uninstall отменён"
     validate_original "$ORIGINAL_JS"

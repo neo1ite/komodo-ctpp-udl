@@ -47,17 +47,17 @@ KOMODO_HOME="${KOMODO_HOME:-$HOME/Komodo-IDE-9}"
     "$KOMODO_HOME/lib/sdk/bin/koext" build --unjarred
 ```
 
-A successful version 2.0 build creates:
+A successful version 2.0.1 build creates:
 
 ```text
-ctpp_language-2.0-ko.xpi
+ctpp_language-2.0.1-ko.xpi
 ```
 
 The build output must contain top-level `skin/` and `content/` directories and must **not** contain `ctpp_language.jar`.
 
 ## Code Intelligence 2.0
 
-Version 2.0 introduces the first functional CTPP CodeIntel layer:
+Version 2.0 introduced the first functional CTPP CodeIntel layer:
 
 - explicit `LangInfo` registration for `CTPP`;
 - `TPL_*`-based CodeIntel instead of the old generated `SSL_*` stub;
@@ -66,6 +66,8 @@ Version 2.0 introduces the first functional CTPP CodeIntel layer:
 - container-tag completion for closing forms such as `</TMPL_...>`;
 - HTML5/XML completion in markup areas;
 - JavaScript and CSS CodeIntel/CILE delegation in their respective UDL families.
+
+Version 2.0.1 is a release-engineering hotfix: it fixes `patch-komodo-codeintel.sh uninstall` when install and uninstall happen within the same filesystem timestamp interval, and marks the build/patch scripts executable. CTPP CodeIntel semantics are unchanged.
 
 Expression completion is intentionally deferred to version 2.1.
 
@@ -77,16 +79,16 @@ The repository contains an idempotent patch manager for this Komodo 9 behaviour:
 
 ```bash
 # Komodo must be fully closed for install/uninstall.
-sh ./patch-komodo-codeintel.sh status
-sh ./patch-komodo-codeintel.sh install
-sh ./patch-komodo-codeintel.sh status
+./patch-komodo-codeintel.sh status
+./patch-komodo-codeintel.sh install
+./patch-komodo-codeintel.sh status
 
 # Re-running install is a no-op.
-sh ./patch-komodo-codeintel.sh install
+./patch-komodo-codeintel.sh install
 
 # Roll back only this patch; re-running uninstall is also a no-op.
-sh ./patch-komodo-codeintel.sh uninstall
-sh ./patch-komodo-codeintel.sh uninstall
+./patch-komodo-codeintel.sh uninstall
+./patch-komodo-codeintel.sh uninstall
 ```
 
 The script:
@@ -96,6 +98,7 @@ The script:
 - refuses to patch an unknown/incompatible CodeIntel implementation;
 - keeps the original JavaScript entry in `lib/mozilla/chrome/.ctpp-codeintel-patch/`;
 - never overwrites that original backup on repeated installs;
+- replaces the target JAR entry deterministically instead of relying on ZIP timestamp-based `-u` behaviour;
 - performs JAR replacement through a verified temporary copy;
 - is idempotent for both `install` and `uninstall`;
 - clears the Komodo startup cache after install/uninstall.
@@ -137,12 +140,12 @@ If a newly installed development build is not reflected in the UI, close Komodo 
 
 Then start Komodo again.
 
-If the old CodeIntel state remains after installing 2.0, fully terminate all Komodo processes before restarting the IDE. CodeIntel runs in a separate backend process and must reload extension `pylib/` modules.
+If the old CodeIntel state remains after installing 2.0/2.0.1, fully terminate all Komodo processes before restarting the IDE. CodeIntel runs in a separate backend process and must reload extension `pylib/` modules.
 
 Check the Komodo core patch independently with:
 
 ```bash
-sh ./patch-komodo-codeintel.sh status
+./patch-komodo-codeintel.sh status
 ```
 
 ## License
