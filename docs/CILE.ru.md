@@ -4,7 +4,7 @@
 
 ## Зачем нужен CILE
 
-Lexer и autocomplete знают, **как выглядит** CTPP-код и что можно предложить в текущей позиции. CILE решает другую задачу: строит семантическое представление файла в формате CIX, которое затем хранится в CodeIntel database.
+Lexer и autocomplete знают, **как выглядит** CTPP-код и что можно предложить в текущей позиции. CILE строит семантическое представление файла в формате CIX, которое затем хранится в CodeIntel database.
 
 Это основа для:
 
@@ -29,6 +29,15 @@ $KOMODO_HOME/lib/mozilla/mozpython
 - `pylib/langinfo_ctpp.py`.
 
 Python 3 можно использовать только как дополнительный standalone smoke-test.
+
+### Python 2 pitfalls, зафиксированные в 2.2
+
+Первый реальный запуск scanner через `mozpython` выявил две важные разницы с Python 3.
+
+1. `repr(unicode)` в Python 2 возвращает форму вроде `u'card'`. Поэтому CIX `signature` нельзя строить через `%r`: scanner использует собственное quoting и выдаёт одинаковую `TMPL_block 'card' ...` сигнатуру в Python 2/3.
+2. `ciElementTree` в Python 2 не обязан сериализовать XML-атрибуты в том же порядке, что `ElementTree` в Python 3. Поэтому smoke-test больше не ищет XML-подстроки: `tests/cile-smoke.py` проверяет само ElementTree.
+
+Есть и третья особенность именно Komodo CodeIntel: extension import hook активен только во время загрузки `codeintel_*.py`. Файл `cile_ctpp.py` по своему имени автоматически не загружается. Поэтому `pylib/codeintel_ctpp_cile_bootstrap.py` импортирует `codeintel2.cile_ctpp`, пока extension hook ещё активен; после этого CILE driver получает модуль из уже загруженного `codeintel2`.
 
 ## CIX-модель 2.2
 
@@ -103,7 +112,7 @@ __ctpp_include__
 
 ## Почему references не используют `ilk="reference"`
 
-CIX разрешает произвольное значение optional `ilk` у variable, но generic Citadel/Code Browser не обязаны понимать новое значение. Поэтому 2.2 не вводит нестандартный ilk.
+CIX разрешает optional `ilk` у variable, но generic Citadel/Code Browser не обязаны понимать новое значение. Поэтому 2.2 не вводит нестандартный ilk.
 
 Reference определяется по custom attributes:
 
@@ -189,7 +198,9 @@ tests/cile-basic.ctpp
 ./tests/cile-smoke.sh
 ```
 
-Эквивалентный прямой запуск:
+Shell wrapper запускает структурный `tests/cile-smoke.py` именно через Komodo `mozpython`.
+
+Прямой вывод scanner:
 
 ```bash
 KOMODO_HOME="${KOMODO_HOME:-$HOME/Komodo-IDE-9}"
